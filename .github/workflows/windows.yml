@@ -1,0 +1,63 @@
+name: Windows portable release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Non-GUI checks
+        shell: pwsh
+        run: |
+          node --check src/main.cjs
+          node --check src/preload.cjs
+          node --check src/shell.js
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package Windows x64 portable
+        run: npm run dist:win -- --publish never
+      - name: Create checksums and include quick-start
+        shell: pwsh
+        run: |
+          Copy-Item TRY-WINDOWS.md dist/TRY-WINDOWS.md
+          Copy-Item README.md dist/README.md
+          Get-ChildItem dist -Filter '*.exe' | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          } | Set-Content dist/SHA256SUMS -Encoding ascii
+          if (-not (Test-Path dist/OpenClaw-Desktop-0.1.0-win-x64.exe)) { throw 'Expected portable EXE missing' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenClaw-Desktop-Windows-x64
+          path: |
+            dist/*.exe
+            dist/SHA256SUMS
+            dist/TRY-WINDOWS.md
+            dist/README.md
+          if-no-files-found: error
+      - name: Publish tagged preview
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME --verify-tag --prerelease --title "OpenClaw Desktop $env:GITHUB_REF_NAME Preview" --notes-file RELEASE-NOTES.md dist/*.exe dist/SHA256SUMS dist/TRY-WINDOWS.md dist/README.md
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

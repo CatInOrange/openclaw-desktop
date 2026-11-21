@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>OpenClaw Desktop</title>
+<link rel="stylesheet" href="shell.css">
+<script src="shell.js" defer></script>
+</head>
+<body>
+<header class="toolbar">
+  <div class="brand"><img src="../assets/icon.png" alt=""><strong>OpenClaw<span>DESKTOP</span></strong></div>
+  <div class="connection"><i id="dot"></i><span id="host">尚未连接</span><span class="badge" id="badge">准备就绪</span></div>
+  <nav><button id="reload" title="重新加载 · Ctrl+R" aria-label="重新加载">↻</button><button id="settings" title="连接设置 · Ctrl+L" aria-label="连接设置">连接设置</button></nav>
+</header>
+<main id="setup">
+  <section class="welcome">
+    <div class="eyebrow"><span></span> YOUR WORKSPACE, ON YOUR DESKTOP</div>
+    <h1>连接你的<br><em>OpenClaw.</em></h1>
+    <p class="intro">熟悉的工作区，专属的桌面入口。<br>任务和会话留在 Gateway，随时回来继续。</p>
+    <div class="features"><div><b>01</b><span>原版界面<small>完整 Control UI</small></span></div><div><b>02</b><span>常驻桌面<small>托盘快速返回</small></span></div><div><b>03</b><span>持续连接<small>页面加载失败自动重试</small></span></div></div>
+  </section>
+  <section class="connect-card">
+    <div class="card-icon">↗</div><h2>连接 Gateway</h2>
+    <p>输入运行 OpenClaw 的服务器地址。</p>
+    <form id="connect-form">
+      <label for="address">GATEWAY 地址</label>
+      <input id="address" name="address" type="url" placeholder="https://claw.example.com" spellcheck="false" autocomplete="url" required>
+      <div class="input-note">支持 HTTPS 地址、本机地址和自定义路径。</div>
+      <div id="form-error" class="form-error" role="alert"></div>
+      <button class="primary" id="connect-button" type="submit">打开工作区 <span>→</span></button>
+    </form>
+    <button id="back" class="back" hidden>返回当前工作区</button>
+    <div class="privacy"><span>◈</span><p>登录、Token 与设备配对将在原版 Control UI 中完成。桌面壳不会读取你的 Token。</p></div>
+  </section>
+</main>
+<main id="waiting" hidden>
+  <div class="status-card"><div id="spinner" class="spinner"></div><div class="eyebrow">OPENCLAW DESKTOP</div><h2 id="status-title">正在连接</h2><p id="status-message" role="status"></p><div class="actions"><button id="retry" class="primary">立即重试</button><button id="change-address">修改地址</button></div><p class="hint">页面内的 Gateway 登录、配对和 WebSocket 重连由 Control UI 处理。</p></div>
+</main>
+<footer id="footer"><span>OpenClaw Desktop <span class="muted">/ 0.1.0 Preview</span></span><span id="footer-note">独立桌面壳 · 非官方客户端</span></footer>
+</body>
+</html>

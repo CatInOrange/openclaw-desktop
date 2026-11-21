@@ -1,0 +1,52 @@
+{
+  "name": "openclaw-desktop-shell",
+  "productName": "OpenClaw Desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Independent desktop shell for the original OpenClaw Control UI",
+  "author": "OpenClaw Desktop contributors",
+  "license": "MIT",
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/policy.test.cjs",
+    "test:integration": "node test/integration.cjs",
+    "dist:linux": "electron-builder --linux tar.gz",
+    "dist:win": "electron-builder --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0",
+    "playwright-core": "1.65.1"
+  },
+  "build": {
+    "appId": "dev.openclaw.desktop.shell",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "artifactName": "OpenClaw-Desktop-${version}-${os}-${arch}.${ext}",
+    "linux": {
+      "target": [
+        "tar.gz"
+      ],
+      "category": "Development",
+      "icon": "assets/icon.png"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "assets/icon.ico",
+      "signExecutable": false
+    },
+    "portable": {
+      "requestExecutionLevel": "user"
+    }
+  }
+}

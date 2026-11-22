@@ -5,3 +5,12 @@ test-output/
 src/portable-update-helper.exe
 
 src/directory-launcher.exe
+
+# Android generated state and derived launcher art
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/res/mipmap-*/ic_launcher.png
+*.jks
+*.keystore

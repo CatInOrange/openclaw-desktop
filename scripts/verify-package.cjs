@@ -35,3 +35,5 @@ for (const file of ['update-core.cjs','updater.cjs','portable-update.cjs','porta
 for (const file of ['directory-update.cjs','startup-trace.cjs']) assert.ok(extractFile(archive,path.normalize('src/'+file)).length, `missing directory update file: ${file}`);
 const directoryEngine=extractFile(archive,path.normalize('src/directory-launcher.exe'));
 assert.equal(directoryEngine.subarray(0,2).toString('ascii'),'MZ','directory updater must be a native Windows executable');
+
+assert.ok(extractFile(archive,path.normalize('shared/core/music-controller.cjs')).length,'shared music core must be packaged with the desktop adapter');

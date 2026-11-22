@@ -26,6 +26,7 @@
     },
     "files": [
       "src/**/*",
+      "shared/core/**/*",
       "assets/**/*",
       "package.json",
       "LICENSE"

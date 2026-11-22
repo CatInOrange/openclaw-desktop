@@ -1,0 +1,8 @@
+<network-security-config>
+    <!-- User-configured LAN gateways require dynamic HTTP hosts. The native
+         URL policy allows HTTP entry addresses only on local/private hosts;
+         mixed content is never enabled and TLS errors are never ignored. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors><certificates src="system" /></trust-anchors>
+    </base-config>
+</network-security-config>

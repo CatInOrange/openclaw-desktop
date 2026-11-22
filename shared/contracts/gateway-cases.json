@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "valid": [
+    {"input":"https://claw.example.com","normalized":"https://claw.example.com/","origin":"https://claw.example.com"},
+    {"input":"https://claw.example.com/control/","normalized":"https://claw.example.com/control/","origin":"https://claw.example.com"},
+    {"input":"https://claw.example.com:443/base","normalized":"https://claw.example.com/base/","origin":"https://claw.example.com"},
+    {"input":"http://192.168.1.20:18789","normalized":"http://192.168.1.20:18789/","origin":"http://192.168.1.20:18789"},
+    {"input":"  https://claw.example.com/base  ","normalized":"https://claw.example.com/base/","origin":"https://claw.example.com"}
+  ],
+  "invalid": [
+    "", "file:///etc/passwd", "javascript:alert(1)", "intent://host", "content://example", "ftp://example.com/",
+    "https://user:password@claw.example.com/", "https://claw.example.com/?token=secret", "https://claw.example.com/?other=value", "https://claw.example.com/#token"
+  ],
+  "originPairs": [
+    {"a":"https://claw.example.com/a","b":"https://claw.example.com/b","same":true},
+    {"a":"https://claw.example.com:443/a","b":"https://claw.example.com/","same":true},
+    {"a":"https://claw.example.com/","b":"http://claw.example.com/","same":false},
+    {"a":"https://claw.example.com/","b":"https://claw.example.com:8443/","same":false},
+    {"a":"https://claw.example.com/","b":"https://claw.example.com.evil.test/","same":false},
+    {"a":"https://claw.example.com/","b":"https://evil.test/claw.example.com/","same":false}
+  ]
+}

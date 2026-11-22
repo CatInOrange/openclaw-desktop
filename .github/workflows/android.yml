@@ -1,0 +1,110 @@
+name: Android connection client
+on:
+  push:
+    paths:
+      - 'android/**'
+      - 'shared/**'
+      - 'assets/icon.png'
+      - 'scripts/sync-android-assets.py'
+      - 'scripts/verify-android-apk.py'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'shared/**'
+      - 'assets/icon.png'
+      - 'scripts/sync-android-assets.py'
+      - 'scripts/verify-android-apk.py'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Shared and desktop non-GUI regression tests
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install pinned Android platform and tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Derive Android artwork from the shared source
+        run: |
+          python -m pip install 'Pillow==12.2.0'
+          python scripts/sync-android-assets.py
+      - name: Android JVM policy tests and lint (no emulator)
+        working-directory: android
+        run: ./gradlew --no-daemon --console=plain :app:testDebugUnitTest :app:lintDebug
+      - name: Prepare private release signing material
+        if: github.event_name != 'pull_request'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}
+        run: |
+          python - <<'PY'
+          import os,base64,pathlib
+          value=os.environ.get('KEYSTORE_B64','')
+          if not value: raise SystemExit('Persistent Android release signing secret is not configured')
+          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'openclaw-android-release.jks'
+          target.write_bytes(base64.b64decode(value,validate=True))
+          target.chmod(0o600)
+          PY
+      - name: Build signed APK (no GUI)
+        if: github.event_name != 'pull_request'
+        working-directory: android
+        env:
+          ANDROID_RELEASE_KEYSTORE: ${{ runner.temp }}/openclaw-android-release.jks
+          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+        run: ./gradlew --no-daemon --console=plain :app:assembleRelease
+      - name: Inspect signed release and prepare download
+        if: github.event_name != 'pull_request'
+        run: |
+          python scripts/verify-android-apk.py android/app/build/outputs/apk/release/app-release.apk --build-tools "$ANDROID_HOME/build-tools/35.0.0"
+          mkdir -p dist/android
+          cp android/app/build/outputs/apk/release/app-release.apk dist/android/OpenClaw-Android-0.1.0.apk
+          cp shared/android-signing-certificate.sha256 dist/android/SIGNING-CERT-SHA256.txt
+          cp docs/ANDROID.md dist/android/ANDROID.md
+          cd dist/android
+          sha256sum OpenClaw-Android-0.1.0.apk > SHA256SUMS
+      - name: Upload signed Android deliverables
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClaw-Android
+          path: dist/android/
+          if-no-files-found: error
+      - name: Upload Android test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-check-reports
+          path: |
+            android/app/build/reports/tests/
+            android/app/build/reports/lint-results-debug.html
+            android/app/build/test-results/
+          if-no-files-found: ignore
+      - name: Remove transient signing file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/openclaw-android-release.jks"

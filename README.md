@@ -1,8 +1,10 @@
-# OpenClaw Desktop — 0.3.6 Preview
+# OpenClaw Desktop — 0.4.6 Preview
 
 独立 Electron 桌面壳，加载 Gateway 提供的原版 Control UI。非官方客户端；不修改 DSH、OpenClaw Gateway 或服务器 UI 文件。
 
 ## 功能
+
+- 顶部极简网易云心动音乐播放器，支持扫码登录、播放/暂停、喜欢、下一首、连续续队列，展开后显示歌名。
 
 - Gateway 地址、窗口位置与大小记忆；独立持久化分区保存 Control UI 自身的登录与设备身份。
 - Windows 窗口控制并入 Control UI 工具栏（透明原生按钮、可拖动空白区），Linux 保留32px本地窗口栏；系统托盘；关闭默认隐藏到托盘，托盘菜单「退出」结束应用。
@@ -14,7 +16,7 @@
 
 ## 使用
 
-退出旧版本后运行 `OpenClaw-Desktop-0.3.6-win-x64.exe`，无需安装 Node.js 或 DSH，需要已有可访问的 Gateway。
+退出旧版本后运行 `OpenClaw-Desktop-0.4.6-win-x64.exe`，无需安装 Node.js 或 DSH，需要已有可访问的 Gateway。
 
 输入完整 Gateway URL，例如 `https://claw.example.com`、`http://127.0.0.1:18789` 或自定义路径。不要把 Token 放进地址；登录和设备配对在原版 Control UI 中完成。
 
@@ -71,3 +73,11 @@ Linux 不运行 GUI 或虚拟显示测试。Windows 的实际播放、声音、�
 ## 个人签名（可选）
 
 仅自己使用时，可以在自己的 Windows 上生成专用代码签名证书、签名副本并显式安装当前用户信任。私钥不上传，不关闭系统防护。自签名不保证消除 SmartScreen；工具仅签外层便携 EXE。详见 [PERSONAL-SIGNING.md](docs/PERSONAL-SIGNING.md)，Release 附带说明和脚本。
+
+
+## 启动速度与两种免安装包
+
+- `OpenClaw-Desktop-0.4.6-win-x64.exe`：单文件便携版。每次完全退出后启动都需要先解压运行时；启动前的耗时会受磁盘、杀毒扫描等本机因素影响。
+- `OpenClaw-Desktop-0.4.6-win-x64-unpacked.zip`：免安装目录版。完整解压一次，之后直接运行目录中的 `OpenClaw Desktop.exe`；不要只拖出 EXE。此版本不走单文件原位更新，后续手动解压新包。两种包使用同一用户配置目录。
+- v0.4.6 将音乐依赖保留在 app.asar，只解出音乐 Worker 引导文件，避免每次便携启动解压大量依赖散文件。Worker 仍在点播放/登录后才启动，不阻塞主窗口加载。
+- 用户数据目录中的 `startup.log` 记录不含 URL、聊天内容或凭据的阶段耗时，可区分进程入口、Electron ready、本地壳显示、开机动画结束、Control UI 加载。它不能独自测量 Electron 启动之前的便携解压耗时；CI 另以 Electron Node 模式对比便携/目录版 bootstrap，不将其冒充 GUI 启动时间。

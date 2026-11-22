@@ -7,9 +7,9 @@ const resources=path.resolve(process.argv[2]||'dist/win-unpacked/resources');
 const archive=path.join(resources,'app.asar');
 for(const name of ['music-api.cjs','music-worker.cjs','music-controller.cjs','music-panel.cjs','music-preload.cjs','music.html','music.js','music.css'])assert.ok(extractFile(archive,path.normalize('src/'+name)).length);
 assert.equal(statFile(archive,path.normalize('src/music-worker.cjs')).unpacked,true);
-assert.equal(statFile(archive,path.normalize('node_modules/@neteasecloudmusicapienhanced/api/module/song_url.js')).unpacked,true);
+assert.ok(!statFile(archive,path.normalize('node_modules/@neteasecloudmusicapienhanced/api/module/song_url.js')).unpacked, 'music dependencies must stay in asar');
 const root=path.dirname(resources);
-const electron=process.platform==='win32'?path.join(root,'OpenClaw Desktop.exe'):path.join(root,'openclaw-desktop-shell');
+const electron=process.argv[3] ? path.resolve(process.argv[3]) : process.platform==='win32'?path.join(root,'OpenClaw Desktop.exe'):path.join(root,'openclaw-desktop-shell');
 const directory=fs.mkdtempSync(path.join(os.tmpdir(),'oc-music-package-'));
 const script=path.join(directory,'probe.cjs');
 fs.writeFileSync(script,`

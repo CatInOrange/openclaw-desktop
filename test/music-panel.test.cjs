@@ -3,9 +3,9 @@ const {test}=require('node:test');const assert=require('node:assert/strict');
 const {EventEmitter}=require('node:events');
 const {createMusicPanel,musicBounds}=require('../src/music-panel.cjs');
 test('music strip and panel stay clear of native captions and track fullscreen positions',()=>{
- assert.deepEqual(musicBounds(1200,false,'win32',false),{x:912,y:0,width:144,height:48});
+ assert.deepEqual(musicBounds(1200,false,'win32',false),{x:904,y:0,width:152,height:48});
  assert.deepEqual(musicBounds(720,true,'win32',false,true),{x:256,y:0,width:320,height:520});
- assert.deepEqual(musicBounds(1200,false,'win32',true),{x:1056,y:0,width:144,height:48});
+ assert.deepEqual(musicBounds(1200,false,'win32',true),{x:1048,y:0,width:152,height:48});
 });
 test('only packaged top-frame music view can invoke commands; remote UI has no music bridge',async()=>{
  let wc,options;const handlers=new Map();

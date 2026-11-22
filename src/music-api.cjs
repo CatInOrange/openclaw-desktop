@@ -5,6 +5,7 @@ const path = require('node:path');
 function createMusicApi(directory) {
   fs.mkdirSync(directory, {recursive: true, mode: 0o700});
   const worker = new Worker(path.join(__dirname.replace(/app\.asar([/\\])/, 'app.asar.unpacked$1'), 'music-worker.cjs'), {
+    workerData: {appDirectory: __dirname},
     env: {...process.env, TMPDIR: directory, TMP: directory, TEMP: directory, NETEASE_COOKIE: '', ENABLE_RANDOM_CN_IP: 'false'},
     stdout: true, stderr: true,
   });

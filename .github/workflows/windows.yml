@@ -3,6 +3,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      comparePrevious:
+        description: 'Compare v0.4.5 portable bootstrap with the current package (non-GUI)'
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -79,6 +84,25 @@ jobs:
               }
             }
           }
+      - name: Compare portable bootstrap without GUI
+        timeout-minutes: 7
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ("${{ inputs.comparePrevious }}" -eq "true") {
+            gh run download 45011081600 --repo CatInOrange/openclaw-desktop --name OpenClaw-Desktop-Windows-x64 --dir previous-build
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node scripts/measure-portable-start.cjs previous-build/OpenClaw-Desktop-0.4.5-win-x64.exe
+          } else {
+            node scripts/measure-portable-start.cjs
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Create unpack-once archive
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          Compress-Archive -Path dist/win-unpacked/* -DestinationPath "dist/OpenClaw-Desktop-$version-win-x64-unpacked.zip" -CompressionLevel Optimal
       - name: Create checksums and include quick-start
         shell: pwsh
         run: |
@@ -87,7 +111,7 @@ jobs:
           Copy-Item docs/PERSONAL-SIGNING.md dist/PERSONAL-SIGNING.md
           Copy-Item docs/UPDATES.md dist/UPDATES.md
           Copy-Item scripts/personal-sign.ps1 dist/personal-sign.ps1
-          Get-ChildItem dist -Filter '*.exe' | ForEach-Object {
+          Get-ChildItem dist -File | Where-Object { $_.Extension -in '.exe', '.zip' } | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Set-Content dist/SHA256SUMS -Encoding ascii
@@ -98,6 +122,8 @@ jobs:
           name: OpenClaw-Desktop-Windows-x64
           path: |
             dist/*.exe
+            dist/*-unpacked.zip
+            dist/STARTUP-MEASUREMENTS.json
             dist/SHA256SUMS
             dist/TRY-WINDOWS.md
             dist/README.md
@@ -111,5 +137,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME --verify-tag --prerelease --title "OpenClaw Desktop $env:GITHUB_REF_NAME Preview" --notes-file RELEASE-NOTES.md dist/*.exe dist/SHA256SUMS dist/TRY-WINDOWS.md dist/README.md dist/PERSONAL-SIGNING.md dist/personal-sign.ps1 dist/UPDATES.md
+          gh release create $env:GITHUB_REF_NAME --verify-tag --prerelease --title "OpenClaw Desktop $env:GITHUB_REF_NAME Preview" --notes-file RELEASE-NOTES.md dist/*.exe dist/*-unpacked.zip dist/STARTUP-MEASUREMENTS.json dist/SHA256SUMS dist/TRY-WINDOWS.md dist/README.md dist/PERSONAL-SIGNING.md dist/personal-sign.ps1 dist/UPDATES.md
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

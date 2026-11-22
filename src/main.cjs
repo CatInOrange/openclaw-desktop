@@ -31,6 +31,8 @@ const {pathToFileURL} = require('node:url');
 const {normalizeGateway, allowedExternal, sameOrigin, restoreBounds} = require('./policy.cjs');
 if (process.env.OPENCLAW_DESKTOP_USER_DATA) app.setPath('userData', path.resolve(process.env.OPENCLAW_DESKTOP_USER_DATA));
 app.setName('OpenClaw Desktop');
+const startupTrace = require('./startup-trace.cjs').createStartupTrace(app);
+startupTrace('main-enter');
 // A media-only scheme: exactly two packaged MP4 files, never arbitrary local paths.
 protocol.registerSchemesAsPrivileged([{scheme: SCHEME, privileges: {standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true}}]);
 const icon = path.join(__dirname, '../assets/icon.png');
@@ -79,6 +81,7 @@ function syncRemoteVisibility() {
 }
 function finishBoot() {
   clearTimeout(bootTimer);
+  startupTrace('boot-finished');
   if (!state.bootPlaying) return;
   const action = afterBoot; afterBoot = null;
   publish({bootPlaying: false});
@@ -194,6 +197,7 @@ function makeRemote() {
   wc.on('did-finish-load', () => {
     if (!current()) return;
     if (httpFailure) { scheduleRetry(`服务器返回 HTTP ${httpFailure}`); return; }
+    startupTrace('control-ui-loaded');
     retryCount = 0; viewLoaded = true; stopRetry();
     if (['setup', 'appearance'].includes(state.phase)) { publish({canBack: true}); syncRemoteVisibility(); return; }
     placeView();
@@ -241,6 +245,7 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', showWindow);
   app.whenReady().then(() => {
+    startupTrace('app-ready');
     configPath = path.join(app.getPath('userData'), 'desktop.json');
     try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); if (!config || typeof config !== 'object' || Array.isArray(config)) config = {}; } catch { config = {}; }
     if (config.gateway) { try { config.gateway = normalizeGateway(config.gateway); } catch { delete config.gateway; } }
@@ -325,8 +330,10 @@ else {
     win.on('close', event => {saveWindow(); if (!quitting && tray) {event.preventDefault(); win.hide();}});
     win.on('closed', () => {win = null; app.quit();});
     win.loadURL(shellUrl).then(() => {
+      startupTrace('shell-loaded');
       if (config.window?.maximized) win.maximize();
       showWindow();
+      startupTrace('window-shown');
       void updater.reportPrevious();
       if (state.bootPlaying) bootTimer = setTimeout(finishBoot, 20000);
       if (config.gateway) connect(config.gateway); else publish({phase: 'setup'});

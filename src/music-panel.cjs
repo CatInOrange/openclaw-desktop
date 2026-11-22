@@ -5,7 +5,7 @@ const {MusicController} = require('./music-controller.cjs');
 const {createMusicApi, createMusicVault} = require('./music-api.cjs');
 function musicBounds(width, expanded, platform, fullscreen, qr = false) {
   const controls = platform === 'win32' && !fullscreen ? 144 : 0;
-  const panelWidth = expanded ? 320 : 144;
+  const panelWidth = expanded ? 320 : 152;
   return {x:Math.max(0,width-controls-panelWidth),y:platform !== 'win32' && !fullscreen ? 32 : 0,width:panelWidth,height:expanded?(qr?520:280):48};
 }
 function createMusicPanel({app, win, WebContentsView, ipcMain, safeStorage, platform = process.platform}) {

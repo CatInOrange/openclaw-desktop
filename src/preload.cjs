@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld('desktop', Object.freeze({
   reconnect: () => ipcRenderer.invoke('desktop:reconnect'),
   settings: () => ipcRenderer.invoke('desktop:settings'),
   back: () => ipcRenderer.invoke('desktop:back'),
+  minimize: () => ipcRenderer.invoke('desktop:minimize'),
+  maximize: () => ipcRenderer.invoke('desktop:maximize'),
+  close: () => ipcRenderer.invoke('desktop:close'),
   initial: () => ipcRenderer.invoke('desktop:initial'),
   onState: callback => {
     const listener = (_event, state) => callback(state);

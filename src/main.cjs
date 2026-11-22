@@ -26,7 +26,7 @@ function stopRetry() { clearTimeout(retryTimer); clearTimeout(loadTimer); retryT
 function placeView() {
   if (!view || !win || win.isDestroyed()) return;
   const [width, height] = win.getContentSize();
-  view.setBounds({x: 0, y: 56, width, height: Math.max(0, height - 56)});
+  view.setBounds({x: 0, y: win.isFullScreen() ? 0 : 32, width, height: Math.max(0, height - (win.isFullScreen() ? 0 : 32))});
 }
 function showWindow() { if (!win) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 function hideView() { if (view) view.setVisible(false); }
@@ -143,14 +143,17 @@ else {
     win = new BrowserWindow({
       ...restoreBounds(config.window, screen.getAllDisplays()), minWidth: 720, minHeight: 520,
       show: false, title: 'OpenClaw Desktop', icon, backgroundColor: '#10151c',
-      autoHideMenuBar: true,
+      autoHideMenuBar: true, frame: false,
       webPreferences: {preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true},
     });
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
     // No native bridge is exposed to the remote Control UI; only this local shell can invoke IPC.
     for (const [name, handler] of Object.entries({
-      initial: () => state,
+      initial: () => ({...state, maximized: win.isMaximized(), fullscreen: win.isFullScreen()}),
+      minimize: () => win.minimize(),
+      maximize: () => {if (win.isMaximized()) win.unmaximize(); else win.maximize();},
+      close: () => win.close(),
       connect: (_event, address) => {try { return connect(address); } catch (error) { return {ok: false, error: error.message}; }},
       reconnect: reconnect,
       settings: openSettings,
@@ -183,6 +186,13 @@ else {
       ]},
     ]));
     buildTray();
+    for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen']) {
+      win.on(event, () => {
+        placeView();
+        publish({maximized: win.isMaximized(), fullscreen: win.isFullScreen()});
+        saveWindow();
+      });
+    }
     win.on('resize', () => {placeView(); clearTimeout(saveTimer); saveTimer = setTimeout(saveWindow, 250);});
     win.on('move', () => {clearTimeout(saveTimer); saveTimer = setTimeout(saveWindow, 250);});
     win.on('close', event => {saveWindow(); if (!quitting && tray) {event.preventDefault(); win.hide();}});

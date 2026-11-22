@@ -1,22 +1,22 @@
-# OpenClaw Desktop — 0.1.0 Preview
+# OpenClaw Desktop — 0.2.0 Preview
 
 独立的 Electron 桌面壳，直接加载你的 Gateway 提供的原版 Control UI。非官方客户端；不修改 DSH、OpenClaw Gateway 或服务器上的 UI 文件。
 
-## 第一阶段功能
+## 当前功能
 
 - Gateway 地址输入、校验、记忆，支持自定义 URL 路径。
 - 原版 Control UI 内登录、Token 与设备配对；浏览器数据在独立的持久化分区保存。
-- 原生系统窗口、大小/位置/最大化状态记忆、移除显示器后的窗口位置恢复。
+- 无边框窗口、32px 精简拖动区及最小化/最大化/关闭按钮；大小/位置/最大化状态记忆、移除显示器后的窗口位置恢复。
 - 系统托盘：打开、重新连接、连接设置、退出。关闭窗口默认隐藏到托盘；托盘创建失败时关闭即退出。
 - 页面加载超时、网络加载失败、HTTP 4xx/5xx 的错误页面及退避重试（最长间隔 30 秒）。
 - Ctrl+L 连接设置、Ctrl+R 重新加载、Ctrl+Q 退出；复制粘贴、文本右键菜单、缩放和文件下载。
 - Web 页面不接触 Node 或桌面 IPC；不忽略 TLS 证书错误，不关闭 webSecurity。
 
-**明确边界：** 顶部“页面已加载”不是“Gateway 已认证/已连接”。WebSocket 的连接、登录、配对与重连状态由原版 Control UI 展示和处理；桌面壳不伪造这些状态。首版尚未接入视频背景、开机动画、桌宠、桌面任务通知或开机自启。
+**明确边界：** 已移除顶部品牌、地址及连接设置横条；使用托盘菜单或 Ctrl+L 打开设置，Ctrl+R 重新加载。网页加载成功不等于 Gateway 已认证/已连接。WebSocket 的连接、登录、配对与重连状态由原版 Control UI 展示和处理；桌面壳不伪造这些状态。首版尚未接入视频背景、开机动画、桌宠、桌面任务通知或开机自启。
 
 ## 使用
 
-Windows 便携版：解压下载文件（若为压缩包）后双击 `OpenClaw-Desktop-0.1.0-win-x64.exe`。此版本不需要安装 Node.js，也不需要安装 DSH；需要已有可访问的 OpenClaw Gateway。
+Windows 便携版：解压下载文件（若为压缩包）后双击 `OpenClaw-Desktop-0.2.0-win-x64.exe`。此版本不需要安装 Node.js，也不需要安装 DSH；需要已有可访问的 OpenClaw Gateway。
 
 1. 输入 Gateway 的完整地址，如 `https://claw.example.com`、`http://127.0.0.1:18789`。自定义路径输入 `https://example.com/openclaw/`。
 2. 不要把 Token 放进地址；如有需要，在 Control UI 中粘贴 Token 并按原版流程完成配对。
@@ -47,7 +47,7 @@ Electron `app.getPath('userData')` 中保存 `desktop.json` 和 Chromium 持久�
 ## 结构与维护
 
 - `src/main.cjs`：窗口、WebContentsView、托盘、连接与重试、IPC 来源校验。
-- `src/shell.*`：本地连接页和工具栏，不参与远程聊天业务。
+- `src/shell.*`：本地连接页和窗口控制区，不参与远程聊天业务。
 - `src/preload.cjs`：仅向本地 shell 提供白名单 API，远程页面没有 preload。
 - `src/policy.cjs`：URL/导航/窗口恢复策略。
 - `test/`：策略测试，以及真实 Electron + 本地 Gateway fixture 的集成测试。

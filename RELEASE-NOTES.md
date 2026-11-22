@@ -1,15 +1,13 @@
-# OpenClaw Desktop — first desktop shell preview
+# OpenClaw Desktop — 0.2.0 Preview
 
-独立 Electron 桌面壳，直接加载原版 OpenClaw Control UI，不修改 DSH 或 Gateway。
+- 改为无边框窗口，移除顶部品牌、地址和连接设置横条。
+- 保留 32px 空白拖动区与最小化、最大化/还原、关闭按钮；全屏时隐藏控制区。
+- 连接设置从托盘菜单或 Ctrl+L 打开；Ctrl+R 重新加载。
+- 保留窗口记忆、关闭到托盘、原版登录配对和页面失败重试。
+- Windows 构建流程根据实际版本检查便携 EXE。
 
-## 下载与启动
+下载 `OpenClaw-Desktop-0.2.0-win-x64.exe`，退出旧版本后启动。无需安装 Node.js 或 DSH，继续使用原有本地配置。
 
-下载 `OpenClaw-Desktop-0.1.0-win-x64.exe` 并双击运行。无需安装 Node.js 或 DSH。
+**验证状态：** 仅执行非 GUI 检查和 Windows 打包；无边框拖动、窗口按钮、全屏、托盘及真实 Gateway 登录聊天仍需用户在 Windows 验收。未作代码签名。视频背景、开机动画和桌宠尚未包含。
 
-输入现有 Gateway 的完整地址，在 Control UI 中完成原版登录和设备配对。关闭窗口后从托盘返回；退出请使用托盘菜单。
-
-本阶段包含连接页、原版 UI、持久浏览器会话、窗口记忆、托盘和页面加载失败自动重试。尚未包含视频背景、开机动画、桌宠或任务通知。
-
-**验证状态：** 发布工作流仅执行非 GUI 检查和 Windows 打包。真实 Windows 窗口、托盘、登录配对、聊天与下载体验需用户实测。此包未作代码签名；Windows 可能显示未识别发布者提示。
-
-试用清单见附件 `TRY-WINDOWS.md`，文件校验值见 `SHA256SUMS`。
+试用清单见 `TRY-WINDOWS.md`；校验值见 `SHA256SUMS`。

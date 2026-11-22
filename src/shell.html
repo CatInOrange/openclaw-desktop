@@ -9,10 +9,13 @@
 <script src="shell.js" defer></script>
 </head>
 <body>
-<header class="toolbar">
-  <div class="brand"><img src="../assets/icon.png" alt=""><strong>OpenClaw<span>DESKTOP</span></strong></div>
-  <div class="connection"><i id="dot"></i><span id="host">尚未连接</span><span class="badge" id="badge">准备就绪</span></div>
-  <nav><button id="reload" title="重新加载 · Ctrl+R" aria-label="重新加载">↻</button><button id="settings" title="连接设置 · Ctrl+L" aria-label="连接设置">连接设置</button></nav>
+<header class="titlebar" aria-label="窗口控制">
+  <div class="drag-region" id="drag-region" title="拖动窗口 · 双击最大化或还原"></div>
+  <nav class="window-controls" aria-label="窗口操作">
+    <button id="minimize" title="最小化" aria-label="最小化">─</button>
+    <button id="maximize" title="最大化" aria-label="最大化">□</button>
+    <button id="close" title="关闭到托盘" aria-label="关闭窗口">×</button>
+  </nav>
 </header>
 <main id="setup">
   <section class="welcome">
@@ -38,6 +41,6 @@
 <main id="waiting" hidden>
   <div class="status-card"><div id="spinner" class="spinner"></div><div class="eyebrow">OPENCLAW DESKTOP</div><h2 id="status-title">正在连接</h2><p id="status-message" role="status"></p><div class="actions"><button id="retry" class="primary">立即重试</button><button id="change-address">修改地址</button></div><p class="hint">页面内的 Gateway 登录、配对和 WebSocket 重连由 Control UI 处理。</p></div>
 </main>
-<footer id="footer"><span>OpenClaw Desktop <span class="muted">/ 0.1.0 Preview</span></span><span id="footer-note">独立桌面壳 · 非官方客户端</span></footer>
+<footer id="footer"><span>OpenClaw Desktop <span class="muted">/ 0.2.0 Preview</span></span><span id="footer-note">独立桌面壳 · 非官方客户端</span></footer>
 </body>
 </html>

@@ -48,7 +48,7 @@ try {
   });
   assert.deepEqual(remoteSecurity,{bridge:'undefined',node:'undefined',probe:'retained'});
   console.log('PASS: real Electron loads Gateway; remote page has no native bridge or Node access');
-  await page.locator('#settings').click();
+  await page.evaluate(() => window.desktop.settings());
   await page.locator('#back').waitFor({state:'visible'});
   await page.locator('#back').click(); await waitPhase(app,'ready');
   const windowState = await app.evaluate(({BrowserWindow}) => {
@@ -59,7 +59,7 @@ try {
   await app.evaluate(({BrowserWindow}) => {BrowserWindow.getAllWindows()[0].show();});
   console.log('PASS: connection settings return, close-to-tray, and window restore');
   responseCode = 503;
-  await page.locator('#reload').click();
+  await page.evaluate(() => window.desktop.reconnect());
   const failedStatus = await waitPhase(app, 'error');
   assert.match(failedStatus.message, /503/);
   responseCode = 200;
@@ -67,7 +67,7 @@ try {
   await waitPhase(app, 'ready');
   console.log('PASS: HTTP errors are not mistaken for a successful page load');
   await new Promise(resolve => server.close(resolve));
-  await page.locator('#reload').click();
+  await page.evaluate(() => window.desktop.reconnect());
   await waitPhase(app,'error');
   assert.equal(await page.locator('#waiting').isVisible(),true);
   await page.screenshot({path:path.join(root,'test-output/reconnect.png')});

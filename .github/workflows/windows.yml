@@ -43,7 +43,8 @@ jobs:
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           } | Set-Content dist/SHA256SUMS -Encoding ascii
-          if (-not (Test-Path dist/OpenClaw-Desktop-0.1.0-win-x64.exe)) { throw 'Expected portable EXE missing' }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if (-not (Test-Path "dist/OpenClaw-Desktop-$version-win-x64.exe")) { throw 'Expected portable EXE missing' }
       - uses: actions/upload-artifact@v4
         with:
           name: OpenClaw-Desktop-Windows-x64

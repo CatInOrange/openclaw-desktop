@@ -1,7 +1,7 @@
 {
   "name": "openclaw-desktop-shell",
   "productName": "OpenClaw Desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Independent desktop shell for the original OpenClaw Control UI",
   "author": "OpenClaw Desktop contributors",

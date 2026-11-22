@@ -7,12 +7,12 @@ function render(state) {
   $('setup').hidden = state.phase !== 'setup';
   $('waiting').hidden = !['loading', 'error'].includes(state.phase);
   $('footer').hidden = state.phase === 'ready';
-  $('dot').dataset.phase = state.phase;
-  $('host').textContent = state.address ? new URL(state.address).host : '尚未连接';
-  $('badge').textContent = ({setup:'连接设置', loading:'加载中', ready:'页面已加载', error:'等待重试'})[state.phase];
-  $('badge').title = state.message;
+  document.body.classList.toggle('fullscreen', Boolean(state.fullscreen));
+  $('maximize').textContent = state.maximized ? '❐' : '□';
+  $('maximize').title = state.maximized ? '还原' : '最大化';
+  $('maximize').setAttribute('aria-label', $('maximize').title);
+  $('close').title = state.trayAvailable ? '关闭到托盘' : '退出应用';
   $('back').hidden = !state.canBack;
-  $('reload').disabled = !state.address;
   $('status-title').textContent = state.phase === 'error' ? '暂时无法打开工作区' : '正在打开工作区';
   $('status-message').textContent = state.message;
   document.querySelector('.status-card').dataset.error = state.phase === 'error';
@@ -32,9 +32,10 @@ $('connect-form').addEventListener('submit', async event => {
   } catch { $('form-error').textContent = '连接请求失败，请重试。'; }
   finally { busy = false; $('connect-button').disabled = false; }
 });
-$('settings').addEventListener('click', () => window.desktop.settings());
+$('minimize').addEventListener('click', () => window.desktop.minimize());
+$('maximize').addEventListener('click', () => window.desktop.maximize());
+$('close').addEventListener('click', () => window.desktop.close());
 $('change-address').addEventListener('click', () => window.desktop.settings());
-$('reload').addEventListener('click', () => window.desktop.reconnect());
 $('retry').addEventListener('click', () => window.desktop.reconnect());
 $('back').addEventListener('click', () => window.desktop.back());
 window.addEventListener('online', () => { if (current.phase === 'error') window.desktop.reconnect(); });

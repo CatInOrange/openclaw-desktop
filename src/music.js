@@ -1,6 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id);
-const audio=$('audio');
+let audio=$('audio');
 let state={}, source='', token=0, playPending=false, playAttempt=0;
 const command=(action,value)=>window.music.command(action,value).catch(()=>{ $('status').textContent='音乐服务暂不可用，请重试。'; });
 function apply(next) {
@@ -32,7 +32,9 @@ function apply(next) {
   $('login').textContent=state.qr?'刷新二维码':'扫码登录';
   $('logout').hidden=!state.authenticated;
   if(state.token!==token || (state.track?.url||'')!==source) {
-    audio.pause();token=state.token;source=state.track?.url||'';playPending=false;
+    const previous=audio;previous.pause();previous.removeAttribute('src');previous.load();
+    audio=document.createElement('audio');audio.id='audio';audio.preload='auto';previous.replaceWith(audio);
+    token=state.token;source=state.track?.url||'';playPending=false;bindMedia(audio,token);
     if(source) audio.src=source;else audio.removeAttribute('src');
     audio.load();
   }
@@ -45,9 +47,13 @@ function apply(next) {
   }
 }
 for(const action of ['toggle','like','next','panel','login','logout']) $(action).addEventListener('click',()=>void command(action));
-audio.addEventListener('ended',()=>void command('ended',token));
-audio.addEventListener('error',()=>{if(source&&state.playing)void command('failed',token);});
-audio.addEventListener('playing',()=>{void command('playing',token);$('status').textContent='正在播放';});
+function bindMedia(element,mediaToken) {
+  const current=()=>element===audio && mediaToken===token;
+  element.addEventListener('ended',()=>{if(current()&&state.playing)void command('ended',mediaToken);});
+  element.addEventListener('error',()=>{if(current()&&source&&state.playing)void command('failed',mediaToken);});
+  element.addEventListener('playing',()=>{if(current()&&state.playing){void command('playing',mediaToken);$('status').textContent='正在播放';}});
+}
+bindMedia(audio,token);
 let receivedState=false;
 window.music.onState(next=>{receivedState=true;apply(next);});
 void window.music.command('initial').then(next=>{if(!receivedState)apply(next);}).catch(()=>{});

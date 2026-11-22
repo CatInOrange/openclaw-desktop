@@ -48,6 +48,7 @@ class MainActivity : Activity() {
     private lateinit var subtitle: TextView
     private var bootVideo: BootVideo? = null
     private var foregroundActive = false
+    private var wallpaperStatus = "等待页面扩展连接"
     private val appearance by lazy { getSharedPreferences("appearance", MODE_PRIVATE) }
     private var browser: GeckoView? = null
     private var session: GeckoSession? = null
@@ -299,6 +300,11 @@ class MainActivity : Activity() {
                             sender.environmentType == WebExtension.MessageSender.ENV_TYPE_CONTENT_SCRIPT &&
                             GatewayPolicy.sameOrigin(sender.url, current.url) &&
                             (message as? JSONObject)?.optString("type") == "settings"
+                        if (allowed) {
+                            val report = (message as? JSONObject)?.optJSONObject("status")
+                            wallpaperStatus = if (report == null) "扩展已连接" else
+                                "${report.optString("state").take(40)} · ${report.optString("error").take(40)} · ready=${report.optInt("ready")} · ${report.optInt("time")}s"
+                        }
                         val response = JSONObject().put("allowed", allowed)
                         if (allowed) response.put("enabled", appearance.getBoolean("background", true))
                             .put("active", foregroundActive && bootVideo == null && !mainFrameFailed)
@@ -323,6 +329,7 @@ class MainActivity : Activity() {
             }
             }
         }, { _ ->
+            wallpaperStatus = "扩展安装失败"
             runOnUiThread {
                 if (!isDestroyed && !isFinishing) { toast("外观加载失败，已恢复原版界面"); gecko.loadUri(target) }
             }
@@ -413,6 +420,12 @@ class MainActivity : Activity() {
         toggle("background", "动态背景")
         slider("strength", "背景强度", 60)
         slider("glass", "毛玻璃透明度", 78)
+        val diagnostic = text("动态背景状态：$wallpaperStatus", 12f)
+        body.addView(diagnostic)
+        body.addView(Button(this).apply {
+            text = "刷新背景状态"
+            setOnClickListener { diagnostic.text = "动态背景状态：$wallpaperStatus" }
+        })
         AlertDialog.Builder(this).setTitle("视频与外观").setView(body).setPositiveButton("完成", null).show()
     }
 

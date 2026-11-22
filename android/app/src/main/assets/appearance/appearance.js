@@ -1,23 +1,41 @@
 'use strict';
-// Isolated content script. No page event/message bridge; only read-only preferences.
+// Isolated content script: preferences and bounded diagnostics only.
 (() => {
-  let blobUrl, pending = false, stopped = false, failed = false;
+  let mediaUrl, pending = false, stopped = false, retryAt = 0;
+  let status = {state: 'starting'};
+  function dataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('media-read'));
+      reader.readAsDataURL(blob);
+    });
+  }
   async function sample() {
     if (pending || stopped) return;
     pending = true;
     try {
-      const settings = await browser.runtime.sendNativeMessage('appearance', {type: 'settings'});
-      if (!settings?.allowed) return;
-      if (settings.enabled && !blobUrl && !failed) {
-        // Firefox MV2 extension fetch uses extension permissions. Present a blob
-        // to the document's media-src CSP, without relaxing the Gateway CSP.
+      const settings = await browser.runtime.sendNativeMessage('appearance', {type: 'settings', status});
+      if (!settings?.allowed) { status = {state: 'origin-denied'}; return; }
+      if (Date.now() < retryAt) return;
+      if (settings.enabled && !mediaUrl) {
+        status = {state: 'loading-local-media'};
         const response = await fetch(browser.runtime.getURL('background.mp4'));
-        if (!response.ok) throw new Error('Local media unavailable');
-        blobUrl = URL.createObjectURL(await response.blob());
+        if (!response.ok) throw new Error('media-fetch');
+        // A data URL has no extension blob principal. The page already permits
+        // data: media; no Gateway CSP changes or remote video requests needed.
+        mediaUrl = await dataUrl(await response.blob());
       }
-      applyBackground({...settings, enabled: settings.enabled && !failed, active: settings.active && !document.hidden, url: blobUrl});
-    } catch {
-      failed = true;
+      const result = applyBackground({...settings, active: settings.active && !document.hidden, url: mediaUrl});
+      const video = document.getElementById('oc-desktop-video')?.querySelector('video');
+      status = {state: result?.state || 'waiting',
+        error: video?.error ? 'media-' + video.error.code : '',
+        ready: video?.readyState || 0, time: Math.floor(video?.currentTime || 0)};
+    } catch (error) {
+      status = {state: 'error', error: String(error?.name || 'Error').slice(0, 40)};
+      // Native messaging can fail transiently during page/session startup.
+      // Do not permanently disable media after one rejected promise.
+      retryAt = Date.now() + 3000;
       applyBackground({enabled: false});
     } finally { pending = false; }
   }
@@ -25,7 +43,7 @@
   document.addEventListener('visibilitychange', sample);
   window.addEventListener('pagehide', event => {
     applyBackground({enabled: false});
-    if (!event.persisted) { stopped = true; clearInterval(timer); if (blobUrl) URL.revokeObjectURL(blobUrl); }
+    if (!event.persisted) { stopped = true; clearInterval(timer); mediaUrl = null; }
   });
   window.addEventListener('pageshow', sample);
   sample();

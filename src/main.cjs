@@ -1,11 +1,23 @@
 'use strict';
-const {app, BrowserWindow, WebContentsView, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, protocol, session} = require('electron');
+const {app, BrowserWindow, WebContentsView, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, protocol, session, net} = require('electron');
 const {DEFAULT_THEME, normalizeTheme} = require('./theme.cjs');
 const {watchTheme} = require('./theme-sync.cjs');
 const {normalizeVideo, updateVideo} = require('./video-config.cjs');
 const {SCHEME, MEDIA_URL, createMediaHandler} = require('./media.cjs');
 const {watchBackground} = require('./background.cjs');
 const fs = require('node:fs');
+const {createUpdater} = require('./updater.cjs');
+let updater;
+function refreshTray(){if(tray&&!quitting)tray.setContextMenu(Menu.buildFromTemplate(trayItems()));}
+function trayItems(){return [
+ {label:'打开 OpenClaw',click:showWindow},
+ {label:'重新连接',click:()=>{showWindow();reconnect();}},
+ {label:'连接设置',click:openSettings},
+ {label:'视频与外观…',click:openAppearance},
+ {label:'显示桌宠',click:()=>petWindow?.show()},
+ {type:'separator'},...(updater?.menu()||[]),
+ {type:'separator'},{label:'退出',click:()=>app.quit()}
+];}
 const {createPetWindow} = require('./pet-window.cjs');
 const {watchPetGateway} = require('./pet-observer.cjs');
 let petWindow, stopPetObserver = () => {};
@@ -215,14 +227,7 @@ function buildTray() {
   try {
     tray = new Tray(nativeImage.createFromPath(icon).resize({width: 24, height: 24}));
     tray.setToolTip('OpenClaw Desktop');
-    tray.setContextMenu(Menu.buildFromTemplate([
-      {label: '打开 OpenClaw', click: showWindow},
-      {label: '重新连接', click: () => {showWindow(); reconnect();}},
-      {label: '连接设置', click: openSettings},
-      {label: '视频与外观…', click: openAppearance},
-      {label: '显示桌宠', click: () => petWindow?.show()}, {type: 'separator'},
-      {label: '退出', click: () => app.quit()},
-    ]));
+    refreshTray();
     tray.on('click', showWindow); publish({trayAvailable: true});
   } catch { tray = null; publish({trayAvailable: false, notice: '系统托盘不可用，关闭窗口将退出应用。'}); }
 }
@@ -273,11 +278,13 @@ else {
       // Let Electron's native Save dialog handle user-requested downloads.
       item.setSaveDialogOptions({title: '保存下载文件'});
     });
+    updater = createUpdater({app,dialog,fetcher:(...args)=>net.fetch(...args),config,save,getWindow:()=>win,onChange:refreshTray});
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       {label: '应用', submenu: [
         {label: '连接设置', accelerator: 'CmdOrCtrl+L', click: openSettings},
         {label: '视频与外观…', accelerator: 'CmdOrCtrl+Shift+V', click: openAppearance},
         {label: '显示桌宠', click: () => petWindow?.show()},
+        {label: '检查更新…', click: () => void updater.check()},
         {label: '重新加载', accelerator: 'CmdOrCtrl+R', click: reconnect},
         {type: 'separator'}, {label: '退出', accelerator: 'CmdOrCtrl+Q', click: () => app.quit()},
       ]},
@@ -312,6 +319,7 @@ else {
     win.loadURL(shellUrl).then(() => {
       if (config.window?.maximized) win.maximize();
       showWindow();
+      void updater.reportPrevious();
       if (state.bootPlaying) bootTimer = setTimeout(finishBoot, 20000);
       if (config.gateway) connect(config.gateway); else publish({phase: 'setup'});
     });

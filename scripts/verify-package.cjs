@@ -29,3 +29,5 @@ for (const file of Object.keys(require('../assets/pet/SHA256.json'))) {
 }
 for (const name of ['pet-window.cjs','pet-observer.cjs','pet-state.cjs','pet-preload.cjs','pet.html','pet.js','pet.css']) assert.ok(extractFile(archive,path.normalize('src/'+name)).length);
 assert.ok(extractFile(archive,path.normalize('assets/pet/NOTICE.md')).length);
+
+for (const file of ['update-core.cjs','updater.cjs','portable-update.cjs','portable-update.ps1']) assert.ok(extractFile(archive,path.normalize('src/'+file)).length, `missing updater file: ${file}`);

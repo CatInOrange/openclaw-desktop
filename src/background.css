@@ -28,3 +28,8 @@ html[data-oc-video="on"] .shell:not(.shell--settings) .sidebar{
 html[data-oc-enter] body{animation:oc-desktop-enter 520ms ease-out both}
 @keyframes oc-desktop-enter{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){html[data-oc-enter] body{animation:none}}
+
+/* Native transcript edge fades assume an opaque chat-surface. On wallpaper
+   they become bright/dark strips; remove only these decorative pseudo-elements. */
+html[data-oc-video="on"] .shell:not(.shell--settings) .chat-main__conversation::before,
+html[data-oc-video="on"] .shell:not(.shell--settings) .chat-footer::before{content:none!important;display:none!important}

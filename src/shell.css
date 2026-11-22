@@ -21,3 +21,8 @@
 .appearance-credit{font-size:10px;color:#748498;margin:24px 0}
 #appearance-back{width:100%}
 @media(prefers-reduced-motion:reduce){#boot-overlay{transition:none}}
+
+/* This document lives below the remote view. The exposed titlebar uses native
+   Windows Acrylic (desktop behind the window), not a second video decoder. */
+html.titlebar-glass{background:transparent}
+html.titlebar-glass .titlebar{background:color-mix(in srgb,var(--titlebar-bg) 22%,transparent)}

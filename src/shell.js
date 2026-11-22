@@ -52,6 +52,7 @@ function render(state) {
   const wasHidden = current.windowActive === false;
   const enteringSetup = current.phase !== 'setup' && state.phase === 'setup';
   current = state;
+  document.documentElement.classList.toggle('titlebar-glass', Boolean(state.titlebarGlass));
   if (state.theme) {
     const style = document.documentElement.style;
     style.setProperty('--titlebar-bg', state.theme.background);

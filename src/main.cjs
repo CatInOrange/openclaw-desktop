@@ -6,6 +6,8 @@ const {normalizeVideo, updateVideo} = require('./video-config.cjs');
 const {SCHEME, MEDIA_URL, createMediaHandler} = require('./media.cjs');
 const {watchBackground} = require('./background.cjs');
 const fs = require('node:fs');
+const os = require('node:os');
+const {applyWindowChrome} = require('./window-chrome.cjs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 const {normalizeGateway, allowedExternal, sameOrigin, restoreBounds} = require('./policy.cjs');
@@ -28,7 +30,10 @@ function save() {
 }
 function publish(next) {
   state = {...state, ...next};
-  if (win && !win.isDestroyed()) win.webContents.send('desktop:state', state);
+  if (win && !win.isDestroyed()) {
+    state.titlebarGlass = applyWindowChrome(win, state, process.platform, os.release());
+    win.webContents.send('desktop:state', state);
+  }
 }
 function stopRetry() { clearTimeout(retryTimer); clearTimeout(loadTimer); retryTimer = null; loadTimer = null; }
 function placeView() {
@@ -129,7 +134,6 @@ function makeRemote() {
     const theme = normalizeTheme(value);
     if (!theme || JSON.stringify(theme) === JSON.stringify(state.theme)) return;
     config.theme = theme; save();
-    win.setBackgroundColor(theme.background);
     remote.setBackgroundColor(theme.background);
     publish({theme});
   }, error => {

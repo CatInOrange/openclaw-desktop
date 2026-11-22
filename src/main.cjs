@@ -6,8 +6,7 @@ const {normalizeVideo, updateVideo} = require('./video-config.cjs');
 const {SCHEME, MEDIA_URL, createMediaHandler} = require('./media.cjs');
 const {watchBackground} = require('./background.cjs');
 const fs = require('node:fs');
-const os = require('node:os');
-const {applyWindowChrome} = require('./window-chrome.cjs');
+const {windowChromeOptions, applyWindowChrome} = require('./window-chrome.cjs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 const {normalizeGateway, allowedExternal, sameOrigin, restoreBounds} = require('./policy.cjs');
@@ -31,7 +30,8 @@ function save() {
 function publish(next) {
   state = {...state, ...next};
   if (win && !win.isDestroyed()) {
-    state.titlebarGlass = applyWindowChrome(win, state, process.platform, os.release());
+    state.nativeControls = process.platform === 'win32';
+    state.integratedTitlebar = applyWindowChrome(win, state, process.platform);
     win.webContents.send('desktop:state', state);
   }
 }
@@ -40,7 +40,8 @@ function placeView() {
   if (!view || !win || win.isDestroyed()) return;
   const [width, height] = win.getContentSize();
   const previewWidth = state.phase === 'appearance' && viewLoaded ? Math.max(0, width - 380) : width;
-  view.setBounds({x: 0, y: win.isFullScreen() ? 0 : 32, width: previewWidth, height: Math.max(0, height - (win.isFullScreen() ? 0 : 32))});
+  const top = process.platform === 'win32' || win.isFullScreen() ? 0 : 32;
+  view.setBounds({x: 0, y: top, width: previewWidth, height: Math.max(0, height - top)});
 }
 function showWindow() { if (!win) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 function updatePlayback() {backgroundSync?.refresh();}
@@ -144,7 +145,9 @@ function makeRemote() {
   });
   backgroundSync = watchBackground(wc, () => ({
     enabled: Boolean(config.video.backgroundEnabled) && sameOrigin(wc.getURL(), config.gateway),
-    strength: config.video.strength, url: MEDIA_URL + 'background.mp4',
+    strength: config.video.strength, glassTransparency: config.video.glassTransparency,
+    integratedChrome: process.platform === 'win32', chromeActive: remoteVisible, fullscreen: win.isFullScreen(),
+    reserveControls: state.phase !== 'appearance', zoom: wc.getZoomFactor(), url: MEDIA_URL + 'background.mp4',
     active: remoteVisible && !state.bootPlaying && win.isVisible() && !win.isMinimized(),
   }), status => {
     if (view === remote && !quitting && state.backgroundStatus !== status) publish({backgroundStatus: status});
@@ -235,7 +238,7 @@ else {
     win = new BrowserWindow({
       ...restoreBounds(config.window, screen.getAllDisplays()), minWidth: 720, minHeight: 520,
       show: false, title: 'OpenClaw Desktop', icon, backgroundColor: state.theme.background,
-      autoHideMenuBar: true, frame: false,
+      autoHideMenuBar: true, ...windowChromeOptions(process.platform, state.theme),
       webPreferences: {preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true},
     });
     win.webContents.on('will-navigate', event => event.preventDefault());

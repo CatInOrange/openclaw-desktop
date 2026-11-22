@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
+const {applyWorkspaceChrome, WORKSPACE_CSS} = require('./workspace-chrome.cjs');
 const BACKGROUND_CSS = fs.readFileSync(path.join(__dirname, 'background.css'), 'utf8');
 // This function is serialized into an isolated renderer world; it has no native API.
 function applyBackground(settings) {
@@ -15,6 +16,7 @@ function applyBackground(settings) {
   function clear() {
     root.removeAttribute('data-oc-video');
     root.style.removeProperty('--oc-video-surface');
+    root.style.removeProperty('--oc-glass-coverage');
     if (runtime.video) {
       runtime.video.pause(); runtime.video.removeAttribute('src'); runtime.video.load();
     }
@@ -53,6 +55,8 @@ function applyBackground(settings) {
   const coverage = dark ? 90 - strength * .65 : 96 - strength * .36;
   const surface = `${coverage.toFixed(1)}%`;
   if (root.style.getPropertyValue('--oc-video-surface') !== surface) root.style.setProperty('--oc-video-surface', surface);
+  const transparency = Number.isFinite(settings.glassTransparency) ? Math.max(0, Math.min(100, settings.glassTransparency)) : 78;
+  root.style.setProperty('--oc-glass-coverage', `${100 - transparency}%`);
   if (runtime.failed) return {state: 'error'};
   const video = runtime.video;
   if (!runtime.active) {
@@ -77,13 +81,13 @@ function watchBackground(wc, getSettings, onStatus, interval = 400) {
     const currentGeneration = generation;
     try {
       if (!styled) {
-        await wc.insertCSS(BACKGROUND_CSS);
+        await wc.insertCSS(BACKGROUND_CSS + '\n' + WORKSPACE_CSS);
         if (currentGeneration !== generation) return;
         styled = true;
       }
       if (stopped || wc.isDestroyed()) return;
       const settings = getSettings();
-      const result = await wc.executeJavaScriptInIsolatedWorld(1002, [{code: `(${applyBackground.toString()})(${JSON.stringify(settings)})`}]);
+      const result = await wc.executeJavaScriptInIsolatedWorld(1002, [{code: `(${applyWorkspaceChrome.toString()})(${JSON.stringify(settings)}); (${applyBackground.toString()})(${JSON.stringify(settings)})`}]);
       if (!stopped && currentGeneration === generation) onStatus(result?.state || 'waiting');
     } catch { if (!stopped) onStatus('error'); }
     finally { busy = false; }

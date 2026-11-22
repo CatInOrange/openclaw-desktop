@@ -1,28 +1,23 @@
 'use strict';
-// Acrylic is available only on Windows 11 22H2+. Never request transparent
-// chrome on unsupported systems: that can leave an unpainted titlebar.
+// Native caption buttons sit over the remote toolbar: no remote native bridge,
+// no second video, and no desktop Acrylic surface above the wallpaper.
+function windowChromeOptions(platform, theme) {
+  return platform === 'win32' ? {
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {color: '#00000000', symbolColor: theme.foreground, height: 48},
+  } : {frame: false};
+}
 const applied = new WeakMap();
-function supportsAcrylic(platform, release) {
-  const [major, , build] = String(release).split('.').map(Number);
-  return platform === 'win32' && (major > 10 || (major === 10 && build >= 22621));
-}
-function applyWindowChrome(win, state, platform, release) {
-  const color = state.theme.background;
-  const glass = supportsAcrylic(platform, release) && Boolean(state.video?.backgroundEnabled) &&
-    !state.bootPlaying && ['ready', 'appearance'].includes(state.phase);
-  const key = `${glass}:${color}`;
-  const previous = applied.get(win);
-  if (previous?.key === key) return previous.glass;
-  let enabled = false;
-  try {
-    if (supportsAcrylic(platform, release)) win.setBackgroundMaterial(glass ? 'acrylic' : 'none');
-    win.setBackgroundColor(glass ? '#00000000' : color);
-    enabled = glass;
-  } catch {
-    try {win.setBackgroundMaterial('none');} catch {}
-    win.setBackgroundColor(color);
+function applyWindowChrome(win, state, platform) {
+  const integrated = platform === 'win32' && !state.bootPlaying && Boolean(state.canBack) &&
+    ['ready', 'appearance'].includes(state.phase);
+  const height = integrated && state.phase === 'ready' ? 48 : 32;
+  const key = `${height}:${state.theme.background}:${state.theme.foreground}`;
+  if (applied.get(win) !== key) {
+    win.setBackgroundColor(state.theme.background);
+    if (platform === 'win32') win.setTitleBarOverlay({color: '#00000000', symbolColor: state.theme.foreground, height});
+    applied.set(win, key);
   }
-  applied.set(win, {key, glass: enabled});
-  return enabled;
+  return integrated;
 }
-module.exports = {supportsAcrylic, applyWindowChrome};
+module.exports = {windowChromeOptions, applyWindowChrome};

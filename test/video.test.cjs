@@ -15,10 +15,14 @@ const {createBootPlayer} = require('../src/boot.js');
 test('video preferences preserve independent switches and reject invalid patches', () => {
   const initial = normalizeVideo(null);
   assert.equal(initial.bootEnabled, true);
+  assert.equal(initial.glassTransparency, 78);
+  assert.equal(normalizeVideo({glassTransparency: 200}).glassTransparency, 100);
+  assert.equal(updateVideo(initial, {glassTransparency: 0}).glassTransparency, 0);
+  assert.equal(updateVideo(initial, {glassTransparency: 100}).glassTransparency, 100);
   const next = updateVideo(initial, {bootEnabled: false, strength: 12});
   assert.equal(next.bootEnabled, false); assert.equal(next.backgroundEnabled, true); assert.equal(next.strength, 12);
   assert.equal(normalizeVideo({strength: -8}).strength, 0);
-  for (const patch of [{strength: NaN}, {strength: 101}, {bootSound: 'yes'}, {unknown: true}, []]) assert.throws(() => updateVideo(initial, patch));
+  for (const patch of [{glassTransparency: NaN}, {glassTransparency: '90'}, {glassTransparency: -1}, {glassTransparency: 101}, {strength: NaN}, {strength: 101}, {bootSound: 'yes'}, {unknown: true}, []]) assert.throws(() => updateVideo(initial, patch));
 });
 
 test('media handler serves full, ranged, suffix and HEAD requests but no other local files', async () => {
@@ -81,6 +85,10 @@ test('background stays silent, pauses while hidden, adapts themes, and restores 
   let video = body.child.child;
   assert.equal(video.muted, true); assert.equal(video.volume, 0); assert.equal(video.loop, true);
   assert.equal(root.getAttribute('data-oc-video'), 'on');
+  apply({...settings, glassTransparency: 0});
+  assert.equal(root.style.getPropertyValue('--oc-glass-coverage'), '100%');
+  apply({...settings, glassTransparency: 100});
+  assert.equal(root.style.getPropertyValue('--oc-glass-coverage'), '0%');
   const darkSurface = root.style.getPropertyValue('--oc-video-surface');
   root.dataset.themeMode = 'light'; apply(settings);
   assert.notEqual(root.style.getPropertyValue('--oc-video-surface'), darkSurface);

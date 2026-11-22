@@ -8,11 +8,8 @@ html[data-oc-video="on"] .shell:not(.shell--settings){background-color:color-mix
 /* The wallpaper is one full-viewport layer; chrome shows it through frosted glass.
    Only docked chrome is affected, never floating dialogs/popovers or settings. */
 html[data-oc-video="on"] .shell:not(.shell--settings){
-  --oc-video-glass-bg:color-mix(in srgb,var(--bg) 22%,transparent);
+  --oc-video-glass-bg:color-mix(in srgb,var(--bg) var(--oc-glass-coverage,22%),transparent);
   --oc-video-glass-line:color-mix(in srgb,var(--text) 14%,transparent);
-}
-html[data-oc-video="on"][data-theme-mode="light"] .shell:not(.shell--settings){
-  --oc-video-glass-bg:color-mix(in srgb,var(--bg) 36%,transparent);
 }
 html[data-oc-video="on"] .shell:not(.shell--settings) :is(.sidebar,.topbar,.chat-pane__header,.chat-details--docked){
   background:var(--oc-video-glass-bg)!important;

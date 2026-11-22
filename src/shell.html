@@ -31,6 +31,9 @@
     <label class="toggle-row" for="video-background"><span>视频背景<small>关闭即恢复原版界面</small></span><input id="video-background" type="checkbox" role="switch"></label>
     <label class="strength-label" for="video-strength">背景强度 <output id="video-strength-value" for="video-strength">60%</output></label>
     <input id="video-strength" type="range" min="0" max="100" step="1" value="60">
+    <label class="strength-label" for="glass-transparency">毛玻璃透明度 <output id="glass-transparency-value" for="glass-transparency">78%</output></label>
+    <input id="glass-transparency" type="range" min="0" max="100" step="1" value="78" aria-describedby="glass-help">
+    <p id="glass-help" class="input-note">越大越通透，越小底色越实；统一影响导航、工具栏和详情面板。</p>
     <p class="appearance-note">左侧实时预览。浅色主题会保留更多底色，确保文字清晰；设置、菜单和输入框不做全局透明。</p>
     <p id="background-status" class="appearance-note" role="status"></p>
   </section>

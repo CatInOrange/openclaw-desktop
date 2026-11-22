@@ -10,7 +10,7 @@ const os = require('node:os');
 const vm = require('node:vm');
 const mainPath = require.resolve('../src/main.cjs');
 const localRequire = createRequire(mainPath);
-async function fixture(video = {}) {
+async function fixture(video = {}, platform = 'linux') {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-main-'));
   fs.writeFileSync(path.join(directory, 'desktop.json'), JSON.stringify({gateway: 'https://claw.example.com/', video}));
   let window, remote, settings, failWrites = false;
@@ -21,16 +21,17 @@ async function fixture(video = {}) {
     setWindowOpenHandler() {} isDestroyed() {return false;}
     loadURL(url) {this.url = url; this.mainFrame.url = url; return Promise.resolve();}
     executeJavaScriptInIsolatedWorld(_world, scripts) {this.reveals = (this.reveals || 0) + 1; return Promise.resolve();}
+    getZoomFactor() {return 1;}
     getURL() {return this.url;}
     send() {} close() {} stop() {}
   }
   class Window extends EventEmitter {
-    constructor() {super(); window = this; this.webContents = new Contents(); this.contentView = {addChildView() {}, removeChildView() {}}; this.visible = false; this.minimized = false;}
+    constructor(options) {super(); this.options = options; window = this; this.webContents = new Contents(); this.contentView = {addChildView() {}, removeChildView() {}}; this.visible = false; this.minimized = false;}
     loadURL(url) {return this.webContents.loadURL(url);}
     isDestroyed() {return false;} isMinimized() {return this.minimized;} isMaximized() {return false;} isFullScreen() {return false;}
     isVisible() {return this.visible;} getContentSize() {return [1200, 800];}
     getNormalBounds() {return {x: 0, y: 0, width: 1200, height: 800};}
-    setBackgroundColor() {} focus() {}
+    setBackgroundColor() {} setTitleBarOverlay(value) {this.overlay = value;} focus() {}
     show() {this.visible = true; this.emit('show');} hide() {this.visible = false; this.emit('hide');}
     restore() {this.minimized = false; this.emit('restore');}
   }
@@ -46,7 +47,7 @@ async function fixture(video = {}) {
     screen: {getAllDisplays: () => [{workArea: {x: 0, y: 0, width: 1920, height: 1080}}]}, shell: {}, dialog: {showErrorBox() {}}, protocol: {registerSchemesAsPrivileged() {}}, session: {defaultSession: session, fromPartition: () => session}};
   const fakeFs = Object.create(fs);
   fakeFs.writeFileSync = (...args) => {if (failWrites) throw new Error('read only'); return fs.writeFileSync(...args);};
-  const context = {__dirname: path.dirname(mainPath), process: {env: {}}, setTimeout, clearTimeout, require(name) {
+  const context = {__dirname: path.dirname(mainPath), process: {env: {}, platform}, setTimeout, clearTimeout, require(name) {
     if (name === 'electron') return electron;
     if (name === 'node:fs') return fakeFs;
     if (name === './theme-sync.cjs') return {watchTheme: () => () => {}};
@@ -114,5 +115,28 @@ test('opening appearance during boot waits for completion rather than skipping t
     f.hooks.finishBoot();
     assert.equal(f.hooks.getState().phase, 'appearance');
     assert.equal(f.remote.visible, true);
+  } finally {f.cleanup();}
+});
+
+test('Windows caption overlay shares the full-height workspace without exposing remote IPC', async () => {
+  const f = await fixture({}, 'win32');
+  try {
+    assert.equal(f.window.options.titleBarStyle, 'hidden');
+    assert.equal(f.window.options.titleBarOverlay.color, '#00000000');
+    f.remote.webContents.emit('did-finish-load'); f.hooks.finishBoot();
+    assert.equal(f.remote.bounds.y, 0); assert.equal(f.remote.bounds.height, 800);
+    assert.equal(f.window.overlay.height, 48);
+    assert.equal(f.hooks.getState().integratedTitlebar, true);
+    assert.equal(f.settings().reserveControls, true);
+    assert.equal(f.settings().integratedChrome, true);
+    assert.equal(f.remote.options.webPreferences.preload, undefined);
+    f.hooks.openAppearance(); assert.equal(f.settings().reserveControls, false);
+    assert.equal(f.window.overlay.height, 32);
+    assert.equal(f.remote.bounds.width, 820);
+    const handler = f.handlers.get('desktop:close');
+    assert.throws(() => handler({sender: f.remote.webContents, senderFrame: f.remote.webContents.mainFrame}), /Untrusted sender/);
+    assert.equal(f.hooks.setVideo({glassTransparency: 91}).ok, true);
+    assert.equal(f.saved().video.glassTransparency, 91);
+    assert.equal(f.settings().glassTransparency, 91);
   } finally {f.cleanup();}
 });

@@ -1,0 +1,21 @@
+/* Windows caption buttons are native overlays. The existing toolbar is the only
+   title row in chat; wallpaper remains a single full-window video layer. */
+html[data-oc-caption] [data-oc-caption-row]{
+  min-height:max(var(--rail-header-height,48px),var(--oc-caption-height))!important;
+  app-region:drag;-webkit-app-region:drag;
+}
+html[data-oc-caption] [data-oc-caption-row="right"]{
+  padding-right:calc(var(--oc-caption-inset) + 12px)!important;
+}
+html[data-oc-caption] [data-oc-caption-row] :is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[contenteditable],openclaw-tooltip,openclaw-session-owner-chip,openclaw-chat-details,.chat-pane__header-trailing){
+  app-region:no-drag;-webkit-app-region:no-drag;
+}
+html[data-oc-caption-fallback] .shell{padding-top:var(--oc-caption-height)!important;box-sizing:border-box}
+#oc-desktop-caption-fallback{
+  position:fixed;inset:0 0 auto;z-index:100;height:var(--oc-caption-height);
+  background:var(--bg,#10151c);app-region:drag;-webkit-app-region:drag;
+}
+html[data-oc-video="on"] #oc-desktop-caption-fallback{
+  background:color-mix(in srgb,var(--bg) var(--oc-glass-coverage,22%),transparent);
+  backdrop-filter:blur(12px) saturate(1.12);-webkit-backdrop-filter:blur(12px) saturate(1.12);
+}

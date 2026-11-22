@@ -12,11 +12,14 @@ function renderVideo(state) {
     $('video-boot').checked = state.video.bootEnabled;
     $('video-sound').checked = state.video.bootSound;
     $('video-background').checked = state.video.backgroundEnabled;
+    $('glass-transparency').value = state.video.glassTransparency;
+    $('glass-transparency-value').textContent = state.video.glassTransparency + '%';
     $('video-strength').value = state.video.strength;
     $('video-strength-value').textContent = state.video.strength + '%';
   }
   $('video-sound').disabled = !$('video-boot').checked;
   $('video-strength').disabled = !$('video-background').checked;
+  $('glass-transparency').disabled = !$('video-background').checked;
   const statuses = {off: '背景已关闭，使用原版界面', paused: '背景已暂停', loading: '正在加载本地背景视频…', playing: '背景正在静音循环播放', error: '背景暂时无法播放，已保留原版界面。可关闭后重新开启重试。', waiting: '打开工作区后显示背景预览'};
   $('background-status').textContent = statuses[state.backgroundStatus] || statuses.waiting;
 }
@@ -26,6 +29,7 @@ function queueVideo(patch) {
   $('video-save-status').textContent = '正在保存…';
   $('video-sound').disabled = !$('video-boot').checked;
   $('video-strength').disabled = !$('video-background').checked;
+  $('glass-transparency').disabled = !$('video-background').checked;
   if (!videoTimer) videoTimer = setTimeout(flushVideo, 120);
 }
 async function flushVideo() {
@@ -52,7 +56,7 @@ function render(state) {
   const wasHidden = current.windowActive === false;
   const enteringSetup = current.phase !== 'setup' && state.phase === 'setup';
   current = state;
-  document.documentElement.classList.toggle('titlebar-glass', Boolean(state.titlebarGlass));
+  document.documentElement.classList.toggle('native-controls', Boolean(state.nativeControls));
   if (state.theme) {
     const style = document.documentElement.style;
     style.setProperty('--titlebar-bg', state.theme.background);
@@ -118,6 +122,10 @@ for (const [id, key] of [['video-boot', 'bootEnabled'], ['video-sound', 'bootSou
 $('video-strength').addEventListener('input', () => {
   const strength = Number($('video-strength').value);
   $('video-strength-value').textContent = strength + '%'; queueVideo({strength});
+});
+$('glass-transparency').addEventListener('input', () => {
+  const glassTransparency = Number($('glass-transparency').value);
+  $('glass-transparency-value').textContent = glassTransparency + '%'; queueVideo({glassTransparency});
 });
 document.addEventListener('visibilitychange', () => {
   const video = $('boot-video');

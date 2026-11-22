@@ -50,4 +50,10 @@ try {
  }
 } finally {
  Remove-Item -LiteralPath $incoming -Force -ErrorAction SilentlyContinue
+ if ($clientExited) {
+  # The large download is no longer needed once replacement/rollback finishes.
+  Remove-Item -LiteralPath $payload.source -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $payload.ready -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $PayloadPath -Force -ErrorAction SilentlyContinue
+ }
 }

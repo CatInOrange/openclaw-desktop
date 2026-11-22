@@ -37,3 +37,17 @@ test('portable target preflight handles paths with spaces, rejects missing EXEs 
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
 module.exports={release};
+
+test('helper launch uses argument arrays and waits for its readiness receipt before allowing exit',async()=>{
+ const {launchReplacement}=require('../src/portable-update.cjs');const {EventEmitter}=require('node:events');
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),"oc helper's [space] "));
+ try{
+  const exe=path.join(dir,"client's app.exe");await fs.writeFile(exe,'old');let received;
+  await launchReplacement({target:exe,file:path.join(dir,'download.exe'),hash:'ab'.repeat(32),directory:dir,result:path.join(dir,'result.json'),version:'0.4.2'},(_command,args,options)=>{
+   received={args,options};const child=new EventEmitter();child.unref=()=>{};
+   void fs.readFile(args.at(-1),'utf8').then(JSON.parse).then(p=>fs.writeFile(p.ready,'ready'));
+   return child;
+  });
+  assert.equal(received.options.detached,true);assert.equal(received.options.shell,undefined);assert.equal(received.args.at(-1),path.join(dir,'payload.json'));
+ }finally{await fs.rm(dir,{recursive:true,force:true});}
+});

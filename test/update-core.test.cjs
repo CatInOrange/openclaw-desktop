@@ -48,7 +48,7 @@ test('helper launch uses argument arrays and waits for its readiness receipt bef
    void fs.readFile(args.at(-1),'utf8').then(JSON.parse).then(p=>fs.writeFile(p.ready,p.token));
    return child;
   });
-  assert.equal(received.options.detached,true);assert.equal(received.options.shell,undefined);assert.equal(received.args.at(-1),path.join(dir,'payload.json'));
+  assert.equal(received.options.detached,false);assert.equal(received.options.shell,undefined);assert.equal(received.args.at(-1),path.join(dir,'payload.json'));
   const payload=JSON.parse(await fs.readFile(path.join(dir,'payload.json'),'utf8'));assert.equal(await fs.readFile(payload.commit,'utf8'),payload.token);
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });

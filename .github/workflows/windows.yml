@@ -43,7 +43,7 @@ jobs:
       - name: Diagnose PowerShell bootstrap (non-GUI)
         shell: pwsh
         run: node scripts/probe-powershell-launch.cjs
-      - name: Verify actual detached updater handoff (non-GUI)
+      - name: Verify actual updater handoff and parent exit (non-GUI)
         shell: pwsh
         run: node scripts/test-portable-handoff.cjs
       - name: Package Windows x64 portable

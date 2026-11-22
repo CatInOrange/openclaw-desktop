@@ -23,7 +23,10 @@ async function launchReplacement({target,file,hash,directory,result,version,pid=
  const fd=nativeFs.openSync(log,'a',0o600);let child,spawnError,exitCode,closed=false;
  const closeLog=()=>{if(!closed){closed=true;nativeFs.closeSync(fd);}};
  try{
-  child=spawnProcess(powershell,['-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',helper,'-PayloadPath',payloadPath],{detached:true,windowsHide:true,stdio:['ignore',fd,fd],env});
+  // Windows PowerShell exits before executing scripts with DETACHED_PROCESS.
+  // Hidden, non-detached + independent log handles + unref survives parent exit;
+  // the Windows handoff test explicitly exits a real parent before replacement.
+  child=spawnProcess(powershell,['-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',helper,'-PayloadPath',payloadPath],{detached:false,windowsHide:true,stdio:['ignore',fd,fd],env});
   child.on('error',e=>{spawnError=e;closeLog();});child.on('exit',code=>{exitCode=code??-1;closeLog();});child.on('spawn',closeLog);child.unref();
   const deadline=Date.now()+timeoutMs;
   while(Date.now()<deadline){

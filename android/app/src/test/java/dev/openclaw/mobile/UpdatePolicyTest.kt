@@ -51,4 +51,15 @@ class UpdatePolicyTest {
             try { UpdatePolicy.selectManifest(row.toString(), "0.1.3", endpoint); fail("Invalid manifest accepted") } catch (_: IllegalArgumentException) { }
         }
     }
+
+    @Test fun mirrorAcceptsZipOnlyWithBoundedApkMetadata() {
+        val row = manifest().put("format", "zip").put("apkSize", 120).put("apkSha256", "b".repeat(64))
+        row.put("apkUrl", row.getString("apkUrl") + ".zip")
+        val next = UpdatePolicy.selectManifest(row.toString(), "0.1.3", endpoint)!!
+        assertTrue(next.zipped)
+        assertEquals(120L, next.apkSize)
+        assertEquals("b".repeat(64), next.apkSha256)
+        row.put("apkSize", UpdatePolicy.MAX_APK + 1)
+        try { UpdatePolicy.selectManifest(row.toString(), "0.1.3", endpoint); fail("Unbounded archive accepted") } catch (_: IllegalArgumentException) { }
+    }
 }

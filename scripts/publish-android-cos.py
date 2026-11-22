@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Publish verified artifacts; never print endpoint or credential values."""
-import hashlib, json, logging, os, re, sys, time
+import hashlib, json, logging, os, re, sys, time, zipfile
 
 stage = "configuration"
 from pathlib import Path
@@ -23,14 +23,18 @@ def main():
     assert (root/'SHA256SUMS').read_text().strip() == f'{digest}  {apk.name}'
     client = CosS3Client(CosConfig(Region=region, SecretId=os.environ['COS_SECRET_ID'], SecretKey=os.environ['COS_SECRET_KEY'], Scheme='https'))
     prefix = parsed.path.lstrip('/').rsplit('/', 1)[0]
-    key = f'{prefix}/releases/android-v{version}/{apk.name}'
+    archive = apk.with_suffix('.apk.zip')
+    with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_STORED) as output:
+        output.write(apk, apk.name)
+    archive_digest = hashlib.file_digest(archive.open('rb'), 'sha256').hexdigest()
+    key = f'{prefix}/releases/android-v{version}/{archive.name}'
     # Versioned artifacts first; only expose a new manifest after remote size verification.
     stage = "upload"
-    client.upload_file(Bucket=bucket, Key=key, LocalFilePath=str(apk), ACL='public-read', PartSize=10, MAXThread=4)
+    client.upload_file(Bucket=bucket, Key=key, LocalFilePath=str(archive), ACL='public-read', PartSize=10, MAXThread=4)
     client.put_object_acl(Bucket=bucket, Key=key, ACL='public-read')
     remote = client.head_object(Bucket=bucket, Key=key)
-    assert int(remote['Content-Length']) == apk.stat().st_size
-    manifest = {'schemaVersion': 1, 'version': version, 'apkUrl': f'{parsed.scheme}://{parsed.netloc}/{key}', 'size': apk.stat().st_size, 'sha256': digest}
+    assert int(remote['Content-Length']) == archive.stat().st_size
+    manifest = {'schemaVersion': 1, 'version': version, 'apkUrl': f'{parsed.scheme}://{parsed.netloc}/{key}', 'size': archive.stat().st_size, 'sha256': archive_digest, 'format': 'zip', 'apkSize': apk.stat().st_size, 'apkSha256': digest}
     stage = "manifest-upload"
     client.put_object(Bucket=bucket, Key=parsed.path.lstrip('/'), Body=json.dumps(manifest).encode(), ACL='public-read', ContentType='application/json', CacheControl='no-store, max-age=0')
     # Verify the same anonymous route the app will use, without leaking URLs in errors.

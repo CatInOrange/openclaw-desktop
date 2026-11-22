@@ -97,11 +97,37 @@ class UpdateActivity : Activity() {
                     hash.digest().joinToString("") { "%02x".format(it) }
                 }
                 require(digest == expected) { "APK 校验不匹配" }
+                if (next.zipped) unpack(next)
                 verifyPackage(next)
                 verified = true
                 ui { status.text = "${next.version} 已下载，文件和发布签名校验通过。"; action.text = "安装更新"; action.isEnabled = true; action.setOnClickListener { install() } }
             } catch (error: Exception) { apk.delete(); throw error }
         }
+    }
+    private fun unpack(next: UpdatePolicy.Release) {
+        val extracted = File(apk.parentFile, "unpacked.apk")
+        try {
+            val hash = MessageDigest.getInstance("SHA-256")
+            java.util.zip.ZipInputStream(apk.inputStream()).use { zip ->
+                val entry = zip.nextEntry ?: error("更新压缩包为空")
+                require(!entry.isDirectory && entry.name == next.name) { "更新压缩包内容无效" }
+                var total = 0L
+                extracted.outputStream().use { output ->
+                    val buffer = ByteArray(65536)
+                    while (true) {
+                        val n = zip.read(buffer)
+                        if (n < 0) break
+                        total += n
+                        require(total <= next.apkSize && total <= UpdatePolicy.MAX_APK) { "解压文件过大" }
+                        hash.update(buffer, 0, n)
+                        output.write(buffer, 0, n)
+                    }
+                }
+                require(total == next.apkSize && zip.nextEntry == null) { "更新压缩包不完整" }
+            }
+            require(hash.digest().joinToString("") { "%02x".format(it) } == next.apkSha256) { "解压 APK 校验失败" }
+            require(apk.delete() && extracted.renameTo(apk)) { "无法保存更新" }
+        } finally { extracted.delete() }
     }
     @Suppress("DEPRECATION")
     private fun verifyPackage(next: UpdatePolicy.Release) {

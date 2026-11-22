@@ -68,8 +68,8 @@ GeckoView 是未修改的 Mozilla 官方预编译组件，按 MPL-2.0 等上游�
 
 ## 0.1.4 COS 更新线路
 
-更新页读取构建时注入的固定 HTTPS 清单地址，从同源 COS 下载公开可读 APK。校验 SHA-256、包名、递增版本和固定签名后由系统确认安装；不携带 COS 上传密钥。
+更新页读取构建时注入的固定 HTTPS 清单地址，从同源 COS 下载公开可读 APK ZIP，自动解压并校验内层 APK。校验 SHA-256、包名、递增版本和固定签名后由系统确认安装；不携带 COS 上传密钥。
 
-真实更新地址和 COS 配置仅放 GitHub Secrets，不提交源码、Release 说明或日志。客户端下载时仍可观察地址。首次从旧版迁移需手动覆盖安装一次，之后在应用内检查更新。
+真实更新地址和 COS 配置仅放 GitHub Secrets，不提交源码、Release 说明或日志。客户端下载时仍可观察地址。COS 默认域名不直接分发 APK，因此使用与 AliceChat 一致的 ZIP 封装；首次从旧版迁移需下载 ZIP、解压并手动覆盖安装一次，之后在应用内检查更新。
 
 发布：在分支通过检查后，手动运行 Android workflow（publish=true）。CI 上传版本目录后最后替换 latest.json；普通 push/PR 不发布。清单禁用缓存，历史安装包使用版本路径；COS 对象独立于 AliceChat。所需 Secrets：ANDROID_UPDATE_MANIFEST_URL、COS_BUCKET、COS_REGION、COS_SECRET_ID、COS_SECRET_KEY，以及既有 Android 签名配置。

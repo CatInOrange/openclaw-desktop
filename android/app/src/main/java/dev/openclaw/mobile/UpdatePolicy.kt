@@ -8,7 +8,7 @@ import java.net.URI
 object UpdatePolicy {
     const val REPO = "CatInOrange/openclaw-desktop"
     const val CERT = "d52b0f680879d78baedd77e91b3c12118fce36a606bd80d92773d5b5c34846c1"
-    data class Release(val version: String, val apk: String, val sums: String, val name: String, val size: Long, val sha256: String? = null)
+    data class Release(val version: String, val apk: String, val sums: String, val name: String, val size: Long, val sha256: String? = null, val zipped: Boolean = false, val apkSize: Long = 0, val apkSha256: String? = null)
     fun version(value: String): List<Int>? { return Regex("^(\\d+)\\.(\\d+)\\.(\\d+)$").matchEntire(value)?.groupValues?.drop(1)?.map { it.toIntOrNull() ?: return null } }
     fun newer(candidate: String, current: String): Boolean {
         val a = version(candidate) ?: return false
@@ -63,9 +63,14 @@ object UpdatePolicy {
         val url = row.getString("apkUrl")
         val size = row.getLong("size")
         val sha = row.getString("sha256").lowercase()
-        require(mirrorUrl(url, manifestUrl) && URI(url).rawPath.endsWith("/$name")) { "更新下载来源无效" }
+        val zipped = row.optString("format") == "zip"
+        val suffix = if (zipped) "$name.zip" else name
+        require(mirrorUrl(url, manifestUrl) && URI(url).rawPath.endsWith("/$suffix")) { "更新下载来源无效" }
         require(size in 1..MAX_APK && Regex("[a-f0-9]{64}").matches(sha)) { "更新文件信息无效" }
-        return Release(ver, url, "", name, size, sha)
+        val apkSize = if (zipped) row.getLong("apkSize") else size
+        val apkSha = if (zipped) row.getString("apkSha256").lowercase() else sha
+        require(apkSize in 1..MAX_APK && Regex("[a-f0-9]{64}").matches(apkSha)) { "APK 信息无效" }
+        return Release(ver, url, "", name, size, sha, zipped, apkSize, apkSha)
     }
     const val MAX_APK = 250L * 1024 * 1024
     fun checksum(text: String, name: String): String {

@@ -98,3 +98,17 @@ test('remote frames cannot invoke video preferences or skip boot through local I
     assert.equal(f.hooks.getState().bootPlaying, false);
   } finally {f.cleanup();}
 });
+
+test('opening appearance during boot waits for completion rather than skipping the video', async () => {
+  const f = await fixture();
+  try {
+    f.remote.webContents.emit('did-finish-load');
+    f.hooks.openAppearance();
+    assert.equal(f.hooks.getState().bootPlaying, true);
+    assert.equal(f.hooks.getState().phase, 'ready');
+    assert.equal(f.remote.visible, false);
+    f.hooks.finishBoot();
+    assert.equal(f.hooks.getState().phase, 'appearance');
+    assert.equal(f.remote.visible, true);
+  } finally {f.cleanup();}
+});

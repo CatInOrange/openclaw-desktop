@@ -16,7 +16,7 @@ protocol.registerSchemesAsPrivileged([{scheme: SCHEME, privileges: {standard: tr
 const icon = path.join(__dirname, '../assets/icon.png');
 const shellUrl = pathToFileURL(path.join(__dirname, 'shell.html')).href;
 let win, view, tray, quitting = false, retryTimer, loadTimer, saveTimer, retryCount = 0, viewLoaded = false;
-let config = {}, configPath, stopThemeSync = () => {}, backgroundSync, bootTimer, remoteVisible = false;
+let config = {}, configPath, stopThemeSync = () => {}, backgroundSync, bootTimer, remoteVisible = false, afterBoot = null;
 let state = {phase: 'setup', address: '', message: '连接你的 OpenClaw Gateway', canBack: false, trayAvailable: false};
 function save() {
   try {
@@ -49,10 +49,13 @@ function syncRemoteVisibility() {
 function finishBoot() {
   clearTimeout(bootTimer);
   if (!state.bootPlaying) return;
-  publish({bootPlaying: false}); syncRemoteVisibility();
+  const action = afterBoot; afterBoot = null;
+  publish({bootPlaying: false});
+  if (action) action(); else syncRemoteVisibility();
 }
 function openAppearance() {
-  finishBoot(); hideView();
+  if (state.bootPlaying) {afterBoot = openAppearance; return;}
+  hideView();
   publish({phase: 'appearance', canBack: Boolean(view && viewLoaded)});
   syncRemoteVisibility(); showWindow();
 }
@@ -75,7 +78,8 @@ function setVideo(patch) {
   } catch (error) {return {ok: false, error: error.message};}
 }
 function openSettings() {
-  finishBoot(); stopRetry(); hideView();
+  if (state.bootPlaying) {afterBoot = openSettings; return;}
+  stopRetry(); hideView();
   publish({phase: 'setup', canBack: Boolean(view && !view.webContents.isDestroyed() && viewLoaded), message: '连接设置'});
   showWindow();
 }

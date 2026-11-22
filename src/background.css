@@ -3,4 +3,23 @@
 #oc-desktop-video video{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
 html[data-oc-video="on"] openclaw-app{position:relative;z-index:1}
 html[data-oc-video="on"] .shell:not(.shell--settings){background-color:color-mix(in srgb,var(--bg-content,var(--bg)) var(--oc-video-surface,75%),transparent)!important;background-image:none!important}
-/* Keep sidebar, composer, menus, settings and overlays at their native opacity. */
+/* Composer, menus, settings and floating overlays retain their native opacity. */
+
+/* The wallpaper is one full-viewport layer; chrome shows it through frosted glass.
+   Only docked chrome is affected, never floating dialogs/popovers or settings. */
+html[data-oc-video="on"] .shell:not(.shell--settings){
+  --oc-video-glass-bg:color-mix(in srgb,var(--bg) 38%,transparent);
+  --oc-video-glass-line:color-mix(in srgb,var(--text) 14%,transparent);
+}
+html[data-oc-video="on"][data-theme-mode="light"] .shell:not(.shell--settings){
+  --oc-video-glass-bg:color-mix(in srgb,var(--bg) 54%,transparent);
+}
+html[data-oc-video="on"] .shell:not(.shell--settings) :is(.sidebar,.topbar,.chat-pane__header,.chat-details--docked){
+  background:var(--oc-video-glass-bg)!important;
+  -webkit-backdrop-filter:blur(18px) saturate(1.12)!important;
+  backdrop-filter:blur(18px) saturate(1.12)!important;
+  border-color:var(--oc-video-glass-line)!important;
+}
+html[data-oc-video="on"] .shell:not(.shell--settings) .sidebar{
+  --sidebar-bg:var(--oc-video-glass-bg);
+}

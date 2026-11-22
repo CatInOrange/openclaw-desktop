@@ -118,18 +118,20 @@ function fakeClock() {
   return clock;
 }
 function bootFixture() {
-  const video = new Element(), overlay = new Element(), soundButton = new Element(), clock = fakeClock();
+  const video = new Element(), overlay = new Element(), clock = fakeClock();
   let done = 0;
-  const player = createBootPlayer({video, overlay, soundButton, clock, onDone: () => done++});
-  return {video, overlay, soundButton, clock, player, done: () => done};
+  const player = createBootPlayer({video, overlay, clock, onDone: () => done++});
+  return {video, overlay, clock, player, done: () => done};
 }
-test('boot plays once, permits independent sound toggle, fades and completes exactly once', async () => {
+test('boot plays through with audio by default, exposes no skip or sound control, and finishes once', async () => {
   const f = bootFixture();
-  await f.player.start({sound: true, url: 'oc-video://assets/boot.mp4'});
-  assert.equal(f.video.muted, false); f.player.toggleSound(); assert.equal(f.video.muted, true); assert.equal(f.done(), 0);
+  await f.player.start({url: 'oc-video://assets/boot.mp4'});
+  assert.equal(f.video.muted, false); assert.equal(f.video.volume, 1);
+  assert.equal(f.player.skip, undefined); assert.equal(f.player.toggleSound, undefined);
+  f.clock.tick(8000); assert.equal(f.done(), 0);
   f.video.emit('ended'); f.clock.tick(150); assert.ok(f.video.volume < 1); assert.equal(f.done(), 0);
   f.clock.tick(200); assert.equal(f.done(), 1); assert.equal(f.overlay.hidden, true);
-  f.player.skip(); f.video.emit('ended'); f.clock.tick(20000); assert.equal(f.done(), 1);
+  f.video.emit('ended'); f.clock.tick(20000); assert.equal(f.done(), 1);
   await f.player.start({sound: true, url: 'ignored'}); assert.equal(f.video.plays, 1);
 });
 test('boot autoplay rejection falls back to mute and decoding failure never blocks entry', async () => {
@@ -137,16 +139,15 @@ test('boot autoplay rejection falls back to mute and decoding failure never bloc
   let attempts = 0;
   f.video.play = () => {if (++attempts === 1) return Promise.reject(new Error('autoplay')); f.video.emit('playing'); return Promise.resolve();};
   await f.player.start({sound: true, url: 'video'});
-  assert.equal(f.video.muted, true); assert.equal(f.soundButton.textContent, '开启声音');
+  assert.equal(f.video.muted, true);
   assert.equal(f.done(), 0); f.video.emit('error'); assert.equal(f.done(), 1);
 });
-test('boot can skip immediately and no-first-frame or never-ending media has a deadline', async () => {
-  for (const action of ['skip', 'no-frame', 'never-ends']) {
+test('no-first-frame or never-ending media still has an automatic error deadline', async () => {
+  for (const action of ['no-frame', 'never-ends']) {
     const f = bootFixture();
     if (action === 'no-frame') f.video.play = () => Promise.resolve();
     await f.player.start({sound: false, url: 'video'});
-    if (action === 'skip') {f.player.skip(); f.clock.tick(400);}
-    else f.clock.tick(action === 'no-frame' ? 5100 : 19000);
+    f.clock.tick(action === 'no-frame' ? 5100 : 19000);
     assert.equal(f.done(), 1, action);
   }
 });

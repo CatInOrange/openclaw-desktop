@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 let current = {}, busy = false, videoSaving = false, pendingVideo = {}, videoTimer;
 let bootSeen = false, bootRunning = false, videoTask = Promise.resolve();
 const boot = window.createBootPlayer({
-  video: $('boot-video'), overlay: $('boot-overlay'), soundButton: $('boot-sound'),
+  video: $('boot-video'), overlay: $('boot-overlay'),
   onDone: () => {bootRunning = false; window.desktop.bootDone().catch(() => {});},
 });
 function renderVideo(state) {
@@ -67,7 +67,7 @@ function render(state) {
     boot.start({sound: Boolean(state.video?.bootSound), url: 'oc-video://assets/boot.mp4'});
   } else if (!state.bootPlaying && bootRunning) {bootRunning = false; boot.stop();}
   if (bootRunning && state.windowActive === false) $('boot-video').pause();
-  else if (bootRunning && wasHidden && state.windowActive) $('boot-video').play().catch(() => boot.skip());
+  else if (bootRunning && wasHidden && state.windowActive) $('boot-video').play().catch(() => boot.stop());
   $('setup').hidden = state.phase !== 'setup';
   $('waiting').hidden = !['loading', 'error'].includes(state.phase);
   $('footer').hidden = ['ready', 'appearance'].includes(state.phase);
@@ -118,14 +118,9 @@ $('video-strength').addEventListener('input', () => {
   const strength = Number($('video-strength').value);
   $('video-strength-value').textContent = strength + '%'; queueVideo({strength});
 });
-$('boot-overlay').addEventListener('click', () => boot.skip());
-$('boot-sound').addEventListener('click', event => {event.stopPropagation(); boot.toggleSound();});
-window.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && current.bootPlaying) {event.preventDefault(); boot.skip();}
-});
 document.addEventListener('visibilitychange', () => {
   const video = $('boot-video');
   if (!bootRunning) return;
   if (document.hidden) video.pause();
-  else video.play().catch(() => boot.skip());
+  else video.play().catch(() => boot.stop());
 });

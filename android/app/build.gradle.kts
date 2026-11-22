@@ -33,7 +33,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            if (System.getenv("CI") == "true") require(!System.getenv("ANDROID_UPDATE_MANIFEST_URL").isNullOrBlank()) { "Update endpoint secret missing" }
+            if (signingValues.all { !it.isNullOrBlank() }) require(!System.getenv("ANDROID_UPDATE_MANIFEST_URL").isNullOrBlank()) { "Update endpoint secret missing" }
             if (signingValues.all { !it.isNullOrBlank() }) signingConfig = signingConfigs.getByName("distribution")
         }
     }

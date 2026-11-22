@@ -31,7 +31,12 @@ with zipfile.ZipFile(apk) as archive:
     assert 'AndroidManifest.xml' in names and 'classes.dex' in names
     assert not any(name.endswith(('.jks','.keystore','.webm')) for name in names),'Private keys or unrelated media included'
     assert not any('node_modules/' in name for name in names),'Desktop dependencies included'
-    for packaged, source in [('res/raw/boot.mp4', 'assets/video/boot.mp4'), ('assets/appearance/background.mp4', 'assets/video/background.mp4')]:
+    # Release AAPT may shorten res paths; retain the raw resource identity and
+    # verify its actual bytes, not a debug-build ZIP path assumption.
+    assert 'raw/boot' in run('aapt', 'dump', 'resources', str(apk)), 'Missing boot resource ID'
+    boot_entries = [name for name in names if name.startswith('res/') and name.endswith('.mp4')]
+    assert len(boot_entries) == 1, 'Unexpected packaged boot media count'
+    for packaged, source in [(boot_entries[0], 'assets/video/boot.mp4'), ('assets/appearance/background.mp4', 'assets/video/background.mp4')]:
         assert hashlib.sha256(archive.read(packaged)).digest() == hashlib.sha256((root/source).read_bytes()).digest(), 'Bundled media differs from licensed desktop source'
     for required in ['manifest.json', 'appearance.js', 'background-core.js', 'background.css', 'NOTICE.md', 'LICENSE.dsh-video-skin']:
         assert 'assets/appearance/' + required in names, 'Missing local appearance resource: ' + required

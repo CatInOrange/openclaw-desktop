@@ -50,6 +50,8 @@ async function fixture(video = {}, platform = 'linux') {
   const context = {__dirname: path.dirname(mainPath), process: {env: {}, platform}, setTimeout, clearTimeout, require(name) {
     if (name === 'electron') return electron;
     if (name === 'node:fs') return fakeFs;
+    if (name === './pet-window.cjs') return {createPetWindow: () => ({event() {}, show() {}, stop() {}})};
+    if (name === './pet-observer.cjs') return {watchPetGateway: () => Object.assign(() => {}, {ready: Promise.resolve()})};
     if (name === './theme-sync.cjs') return {watchTheme: () => () => {}};
     if (name === './background.cjs') return {watchBackground: (_wc, getSettings) => {settings = getSettings; return {stop() {}, refresh() {}};}};
     return localRequire(name);

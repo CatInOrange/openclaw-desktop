@@ -1,7 +1,7 @@
 {
   "name": "openclaw-desktop-shell",
   "productName": "OpenClaw Desktop",
-  "version": "0.3.6",
+  "version": "0.4.0",
   "private": true,
   "description": "Independent desktop shell for the original OpenClaw Control UI",
   "author": "OpenClaw Desktop contributors",
@@ -49,7 +49,8 @@
       "requestExecutionLevel": "user"
     },
     "asarUnpack": [
-      "assets/video/*.mp4"
+      "assets/video/*.mp4",
+      "assets/pet/*.webm"
     ]
   }
 }

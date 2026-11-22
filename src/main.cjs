@@ -6,6 +6,9 @@ const {normalizeVideo, updateVideo} = require('./video-config.cjs');
 const {SCHEME, MEDIA_URL, createMediaHandler} = require('./media.cjs');
 const {watchBackground} = require('./background.cjs');
 const fs = require('node:fs');
+const {createPetWindow} = require('./pet-window.cjs');
+const {watchPetGateway} = require('./pet-observer.cjs');
+let petWindow, stopPetObserver = () => {};
 const {windowChromeOptions, applyWindowChrome} = require('./window-chrome.cjs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
@@ -107,13 +110,17 @@ function loadGateway() {
   viewLoaded = false;
   hideView(); publish({phase: 'loading', message: '正在加载 Control UI…', canBack: false});
   // did-fail-load owns errors and retry; suppress the duplicated rejected promise.
-  view.webContents.loadURL(config.gateway).catch(() => {});
+  const loadingView = view;
+  Promise.resolve(stopPetObserver.ready).then(() => {
+    if (view === loadingView && !quitting && !loadingView.webContents.isDestroyed()) loadingView.webContents.loadURL(config.gateway).catch(() => {});
+  });
   loadTimer = setTimeout(() => {
     if (!view || view.webContents.isDestroyed()) return;
     view.webContents.stop(); scheduleRetry('页面加载超时');
   }, 20000);
 }
 function makeRemote() {
+  stopPetObserver();
   stopThemeSync(); backgroundSync?.stop();
   if (view) {
     win.contentView.removeChildView(view);
@@ -129,6 +136,7 @@ function makeRemote() {
   remote.setBackgroundColor((state.theme || DEFAULT_THEME).background);
   win.contentView.addChildView(remote); placeView(); hideView();
   const wc = remote.webContents;
+  stopPetObserver = watchPetGateway(wc, event => petWindow?.event(event), {isTrusted: () => view === remote && !quitting && sameOrigin(wc.getURL(), config.gateway)});
   let themeErrorLogged = false;
   stopThemeSync = watchTheme(wc, value => {
     if (view !== remote || quitting || !sameOrigin(wc.getURL(), config.gateway)) return;
@@ -213,7 +221,8 @@ function buildTray() {
       {label: '打开 OpenClaw', click: showWindow},
       {label: '重新连接', click: () => {showWindow(); reconnect();}},
       {label: '连接设置', click: openSettings},
-      {label: '视频与外观…', click: openAppearance}, {type: 'separator'},
+      {label: '视频与外观…', click: openAppearance},
+      {label: '显示桌宠', click: () => petWindow?.show()}, {type: 'separator'},
       {label: '退出', click: () => app.quit()},
     ]));
     tray.on('click', showWindow); publish({trayAvailable: true});
@@ -270,6 +279,7 @@ else {
       {label: '应用', submenu: [
         {label: '连接设置', accelerator: 'CmdOrCtrl+L', click: openSettings},
         {label: '视频与外观…', accelerator: 'CmdOrCtrl+Shift+V', click: openAppearance},
+        {label: '显示桌宠', click: () => petWindow?.show()},
         {label: '重新加载', accelerator: 'CmdOrCtrl+R', click: reconnect},
         {type: 'separator'}, {label: '退出', accelerator: 'CmdOrCtrl+Q', click: () => app.quit()},
       ]},
@@ -281,6 +291,11 @@ else {
         {role: 'togglefullscreen'},
       ]},
     ]));
+    petWindow = createPetWindow({BrowserWindow, ipcMain, screen, config, save, openSession: key => {
+      if (!config.gateway || !view || view.webContents.isDestroyed()) return;
+      const target = new URL(config.gateway); target.searchParams.set('session', key);
+      view.webContents.loadURL(target.href).catch(() => {}); showWindow();
+    }});
     buildTray();
     for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen']) {
       win.on(event, () => {
@@ -305,5 +320,5 @@ else {
   }).catch(error => {dialog.showErrorBox('OpenClaw Desktop 启动失败', error.message); app.exit(1);});
 }
 app.on('activate', showWindow);
-app.on('before-quit', () => {quitting = true; clearTimeout(bootTimer); backgroundSync?.stop(); stopThemeSync(); stopRetry(); clearTimeout(saveTimer); if (configPath) saveWindow(); if (view && !view.webContents.isDestroyed()) view.webContents.close();});
+app.on('before-quit', () => {quitting = true; stopPetObserver(); petWindow?.stop(); clearTimeout(bootTimer); backgroundSync?.stop(); stopThemeSync(); stopRetry(); clearTimeout(saveTimer); if (configPath) saveWindow(); if (view && !view.webContents.isDestroyed()) view.webContents.close();});
 app.on('window-all-closed', () => {if (quitting || !tray) app.quit();});

@@ -20,6 +20,10 @@ on:
       - '.github/workflows/android.yml'
   workflow_dispatch:
     inputs:
+      source_run:
+        description: Optional verified Android build run to republish without rebuilding
+        type: string
+        default: ''
       publish:
         description: Publish signed release to COS after all checks
         type: boolean
@@ -31,6 +35,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
+    if: inputs.source_run == ''
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -131,3 +136,32 @@ jobs:
       - name: Remove transient signing file
         if: always()
         run: rm -f "$RUNNER_TEMP/openclaw-android-release.jks"
+
+  republish:
+    if: github.event_name == 'workflow_dispatch' && inputs.source_run != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fetch previously inspected signed APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+        run: |
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]] || exit 1
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" -n OpenClaw-Android -D dist/android
+          cd dist/android
+          sha256sum -c SHA256SUMS
+      - name: Publish and verify anonymous reads
+        env:
+          ANDROID_UPDATE_MANIFEST_URL: ${{ secrets.ANDROID_UPDATE_MANIFEST_URL }}
+          COS_BUCKET: ${{ secrets.COS_BUCKET }}
+          COS_REGION: ${{ secrets.COS_REGION }}
+          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
+          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+        run: |
+          python -m pip -q install cos-python-sdk-v5
+          python scripts/publish-android-cos.py

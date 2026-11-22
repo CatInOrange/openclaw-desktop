@@ -114,7 +114,7 @@ jobs:
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           node scripts/build-directory-package.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Compress-Archive -Path dist/directory/* -DestinationPath "dist/OpenClaw-Desktop-$version-win-x64-directory.zip" -CompressionLevel Optimal
+          & ./scripts/create-directory-archive.ps1
       - name: Verify final directory ZIP with shipped native parser (no GUI)
         shell: powershell
         run: ./scripts/verify-directory-archive.ps1

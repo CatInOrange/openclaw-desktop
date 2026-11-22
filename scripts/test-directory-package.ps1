@@ -9,9 +9,9 @@ $archive = Join-Path $root 'fixture.zip'
 try {
  node (Join-Path $PSScriptRoot 'build-directory-package.cjs') $inputDirectory
  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
- Compress-Archive -Path (Join-Path $project 'dist\directory\*') -DestinationPath $archive -CompressionLevel Optimal
+ & (Join-Path $PSScriptRoot 'create-directory-archive.ps1') -Directory (Join-Path $project 'dist\directory') -Destination $archive
  & (Join-Path $PSScriptRoot 'verify-directory-archive.ps1') -Archive $archive
- Write-Output 'Producer -> Compress-Archive -> shipped native parser preflight passed (no GUI).'
+ Write-Output 'Producer -> normalized ZIP -> shipped native parser preflight passed (no GUI).'
 } finally {
  [IO.Directory]::Delete($root,$true)
  if (Test-Path -LiteralPath (Join-Path $project 'dist\directory')) { [IO.Directory]::Delete((Join-Path $project 'dist\directory'),$true) }

@@ -6,27 +6,39 @@ if (-not $Archive) { $Archive = Join-Path $project "dist\OpenClaw-Desktop-$Versi
 $launcher = [IO.Path]::GetFullPath((Join-Path $project 'src\directory-launcher.exe'))
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-# Loading the assembly and invoking these two IO-only methods never calls Main,
-# StartClient, or any GUI. Use the exact native parser shipped to the user.
-$assembly = [Reflection.Assembly]::LoadFile($launcher)
-$type = $assembly.GetType('DirectoryLauncher', $true)
-$flags = [Reflection.BindingFlags]::Static -bor [Reflection.BindingFlags]::NonPublic
-$extract = $type.GetMethod('Extract', $flags)
-$validate = $type.GetMethod('ValidateDistribution', $flags)
-if (-not $extract -or -not $validate) { throw 'Native archive verifier methods missing' }
+# Keep Stream and reflection arguments in CLR code. Windows PowerShell wraps
+# New-Object results in PSObject when they are passed through object[] arrays.
+# Loading this assembly and invoking its two IO-only methods never calls Main,
+# StartClient, or any GUI. This is the exact parser shipped to the user.
+Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Reflection;
+public static class DirectoryArchiveVerifier {
+ public static void Verify(string launcher,string archive,string stage,string version) {
+  var type=Assembly.LoadFile(launcher).GetType("DirectoryLauncher",true);
+  var flags=BindingFlags.Static|BindingFlags.NonPublic;
+  var extract=type.GetMethod("Extract",flags);
+  var validate=type.GetMethod("ValidateDistribution",flags);
+  if(extract==null||validate==null)throw new IOException("Native archive verifier methods missing");
+  using(var source=new FileStream(archive,FileMode.Open,FileAccess.Read,FileShare.Read))
+   extract.Invoke(null,new object[]{source,stage,version});
+  validate.Invoke(null,new object[]{stage,version});
+ }
+}
+'@
 $stage = Join-Path ([IO.Path]::GetTempPath()) ('oc-final-directory-' + [guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($stage) | Out-Null
 try {
- $source = New-Object IO.FileStream([IO.Path]::GetFullPath($Archive), [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
- try { $extract.Invoke($null, [object[]]@($source,$stage,[string]$Version)) | Out-Null } finally { $source.Dispose() }
- $validate.Invoke($null, [object[]]@($stage,[string]$Version)) | Out-Null
+ [DirectoryArchiveVerifier]::Verify($launcher,[IO.Path]::GetFullPath($Archive),$stage,[string]$Version)
  $actual = (Get-FileHash -LiteralPath (Join-Path $stage 'OpenClaw.exe') -Algorithm SHA256).Hash
  $expected = (Get-FileHash -LiteralPath $launcher -Algorithm SHA256).Hash
  if ($actual -ne $expected) { throw 'Distributed fixed launcher differs from tested native build' }
  Write-Output 'Final directory ZIP, all version-file hashes and fixed launcher verified by the shipped native parser (no GUI).'
 } catch {
- if ($_.Exception.InnerException) { throw $_.Exception.InnerException }
- throw
+ $failure=$_.Exception
+ while ($failure.InnerException) { $failure=$failure.InnerException }
+ throw $failure
 } finally {
  [IO.Directory]::Delete($stage,$true)
 }

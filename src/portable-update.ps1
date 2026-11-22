@@ -6,6 +6,12 @@ $clientExited = $false
 $committed = $false
 $backup = $payload.target + '.previous.exe'
 $incoming = $payload.target + '.update-new'
+function File-Hash([string]$FilePath) {
+ $algorithm = [Security.Cryptography.SHA256]::Create()
+ $stream = [IO.File]::OpenRead($FilePath)
+ try { return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-','').ToLowerInvariant() }
+ finally { $stream.Dispose(); $algorithm.Dispose() }
+}
 function Write-Result([string]$phase,[string]$message) {
  @{phase=$phase;message=$message;version=$payload.version;backup=$backup} | ConvertTo-Json | Set-Content -LiteralPath $payload.result -Encoding UTF8
 }
@@ -36,9 +42,9 @@ try {
  $parent = Get-Process -Id $payload.pid -ErrorAction SilentlyContinue
  if ($parent -and -not $parent.WaitForExit(60000)) { throw 'Client did not exit; update cancelled' }
  $clientExited = $true
- if ((Get-FileHash -LiteralPath $payload.source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $payload.hash) { throw 'Downloaded update checksum mismatch' }
+ if ((File-Hash $payload.source) -ne $payload.hash) { throw 'Downloaded update checksum mismatch' }
  Copy-Item -LiteralPath $payload.source -Destination $incoming -Force
- if ((Get-FileHash -LiteralPath $incoming -Algorithm SHA256).Hash.ToLowerInvariant() -ne $payload.hash) { throw 'Staged update checksum mismatch' }
+ if ((File-Hash $incoming) -ne $payload.hash) { throw 'Staged update checksum mismatch' }
  # The portable NSIS launcher may hold the EXE after Electron exits. Retry
  # atomic replacement without deleting the live file or its previous backup.
  $deadline = [DateTime]::UtcNow.AddSeconds(60)

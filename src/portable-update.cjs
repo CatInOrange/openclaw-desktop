@@ -18,7 +18,8 @@ async function launchReplacement({target,file,hash,directory,result,version,pid=
  // readFile works for packed ASAR resources too; no external script path is executed.
  await fs.writeFile(helper,await fs.readFile(path.join(__dirname,'portable-update.ps1')));
  await fs.writeFile(payloadPath,JSON.stringify({target,source:file,hash,result,ready,commit,cancel,token,version,pid}),{mode:0o600});
- const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
+ const env={...process.env};
+ for(const key of Object.keys(env))if(['electron_run_as_node','psmodulepath'].includes(key.toLowerCase()))delete env[key];
  const powershell=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
  const fd=nativeFs.openSync(log,'a',0o600);let child,spawnError,exitCode,closed=false;
  const closeLog=()=>{if(!closed){closed=true;nativeFs.closeSync(fd);}};

@@ -27,19 +27,22 @@ async function main(){
    if(!corrupt)assert.equal(hash(await fs.readFile(target+'.previous.exe')),oldHash);
   }
   // Production order: caller really exits, then helper verifies and replaces.
-  const dir=path.join(root,'real parent exit');await fs.mkdir(dir);
+  for(const runtime of ['node','electron']){
+  const dir=path.join(root,'real parent exit '+runtime);await fs.mkdir(dir);
   const target=path.join(dir,'client.exe'),file=path.join(dir,'download.exe'),result=path.join(dir,'result.json');
   await fs.copyFile(path.join(process.env.SystemRoot,'System32','where.exe'),target);await fs.copyFile(path.join(process.env.SystemRoot,'System32','whoami.exe'),file);
   const oldHash=hash(await fs.readFile(target)),newHash=hash(await fs.readFile(file)),input=path.join(dir,'caller.json');
   await fs.writeFile(input,JSON.stringify({target,file,hash:newHash,directory:dir,result,version:'test'}));
-  const caller=spawn(process.execPath,[__filename,'--caller',input],{windowsHide:true,stdio:['ignore','pipe','pipe']});let output='';caller.stdout.on('data',b=>{output+=b;});caller.stderr.on('data',b=>{output+=b;});
+  const executable=runtime==='node'?process.execPath:path.join(__dirname,'..','node_modules','electron','dist','electron.exe');
+  const caller=spawn(executable,[__filename,'--caller',input],{env:{...process.env,...(runtime==='electron'?{ELECTRON_RUN_AS_NODE:'1'}:{})},windowsHide:true,stdio:['ignore','pipe','pipe']});let output='';caller.stdout.on('data',b=>{output+=b;});caller.stderr.on('data',b=>{output+=b;});
   const code=await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('Caller did not exit')),40000);caller.once('exit',code=>{clearTimeout(t);resolve(code);});caller.once('error',e=>{clearTimeout(t);reject(e);});});assert.equal(code,0,output);
   const deadline=Date.now()+15000;let outcome;
   while(Date.now()<deadline){try{outcome=JSON.parse((await fs.readFile(result,'utf8')).replace(/^\uFEFF/,''));if(outcome.phase==='failed')throw new Error(outcome.message);await fs.access(file);}catch(e){if(outcome?.phase==='installed'&&e.code==='ENOENT')break;if(e.code!=='ENOENT')throw e;}await new Promise(r=>setTimeout(r,100));}
   assert.equal(outcome?.phase,'installed');assert.equal(hash(await fs.readFile(target)),newHash);assert.equal(hash(await fs.readFile(target+'.previous.exe')),oldHash);
+  }
   console.log('Actual hidden PowerShell handoff passed, including real caller exit before replacement.');
  }catch(error){
-  for(const name of ['success','hash failure','real parent exit']){try{console.error('HELPER OUTPUT '+name+':\n'+await fs.readFile(path.join(root,name,'result.json.helper.log'),'utf8'));}catch{}}
+  for(const name of ['success','hash failure','real parent exit node','real parent exit electron']){try{console.error('HELPER OUTPUT '+name+':\n'+await fs.readFile(path.join(root,name,'result.json.helper.log'),'utf8'));}catch{}}
   throw error;
  }finally{await fs.rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 }

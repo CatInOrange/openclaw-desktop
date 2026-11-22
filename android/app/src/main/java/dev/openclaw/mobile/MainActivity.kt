@@ -307,7 +307,19 @@ class MainActivity : Activity() {
                         return GeckoResult.fromValue<Any>(response)
                     }
                 }, "appearance")
-                gecko.loadUri(target)
+                // Upgrade existing profiles too: Gecko persists a previous DENY.
+                // Do not clear cookies, login state, or unrelated permissions.
+                runtime.storageController.getPermissions(address.url, false).accept({ permissions ->
+                    permissions?.filter {
+                        it.permission == GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_INAUDIBLE &&
+                            GatewayPolicy.sameOrigin(it.uri, address.url)
+                    }?.forEach {
+                        runtime.storageController.setPermission(it, GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW)
+                    }
+                    runOnUiThread { if (!isDestroyed && !isFinishing) gecko.loadUri(target) }
+                }, { _ ->
+                    runOnUiThread { if (!isDestroyed && !isFinishing) gecko.loadUri(target) }
+                })
             }
             }
         }, { _ ->

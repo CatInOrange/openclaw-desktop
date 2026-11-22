@@ -4,15 +4,15 @@ const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
 const path=require('node:path');
-test('pet renderer initializes with the immutable preload bridge and plays idle without a Gateway',()=>{
- const elements=new Map();let receive,plays=0;const commands=[];
+test('pet renderer initializes with the immutable preload bridge and plays idle without a Gateway',async()=>{
+ const elements=new Map();let receive,plays=0;const commands=[];let frame;
  const get=key=>{
   if(!elements.has(key))elements.set(key,{style:{setProperty(){}},classList:{toggle(){},remove(){},add(){}},getContext:()=>({}),play:()=>{plays++;return Promise.resolve();},replaceChildren(){},append(){},setPointerCapture(){},hasPointerCapture(){return false;}});
   return elements.get(key);
  };
- const context=vm.createContext({document:{querySelector:get,getElementById:id=>get('#'+id),documentElement:get('html'),addEventListener(){}},console});
+ const context=vm.createContext({document:{querySelector:get,getElementById:id=>get('#'+id),documentElement:get('html'),addEventListener(){}},console,requestAnimationFrame:fn=>{frame=fn;return 1;},cancelAnimationFrame:()=>{frame=null;}});
  // Electron contextBridge exposes an immutable own property on the global.
- const bridge={command:(...args)=>{commands.push(args);return Promise.resolve();},onState:fn=>{receive=fn;}};
+ const bridge={command:(...args)=>{commands.push(args);return Promise.resolve(args[0]==='walk-plan'?{id:1,startX:500,targetX:400,y:300,direction:-1,leadSec:2,tailSec:2}:undefined);},onState:fn=>{receive=fn;}};
  Object.defineProperty(context,'pet',{value:bridge,writable:false,configurable:false});
  context.window=context;
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/pet.js'),'utf8'),context);
@@ -39,9 +39,9 @@ test('pet renderer initializes with the immutable preload bridge and plays idle 
  get('video').onended();assert.equal(get('video').src,'../assets/pet/working.webm');
  assert.ok(!commands.some(c=>c[0]==='expand'));
  receive({action:'idle',connected:true,complete:true,roaming:true,size:462,sessions:[]});
- context.Math.random=()=>0;get('video').onended();assert.equal(get('video').src,'../assets/pet/idle-walk.webm');
- get('video').duration=8;get('video').currentTime=4;get('video').ontimeupdate();
- assert.ok(commands.some(c=>c[0]==='move'&&c[1].x!==0));
- const before=commands.length;
- receive({action:'working',connected:true,complete:true,sessions:[]});get('video').ontimeupdate();assert.equal(commands.length,before);
+ context.Math.random=()=>0;await get('video').onended();assert.equal(get('video').src,'../assets/pet/idle-walk.webm');
+ get('video').duration=8;get('video').currentTime=4;get('video').onloadedmetadata();frame?.();
+ assert.ok(commands.some(c=>c[0]==='walk-step'&&c[1].progress===.5));
+ receive({action:'working',connected:true,complete:true,sessions:[]});
+ const before=commands.length;frame?.();assert.equal(commands.length,before);assert.equal(frame,null);
 });

@@ -27,7 +27,7 @@ for (const file of Object.keys(require('../assets/pet/SHA256.json'))) {
  const data = fs.readFileSync(path.join(resources, 'app.asar.unpacked', relative));
  assert.equal(createHash('sha256').update(data).digest('hex'),require('../assets/pet/SHA256.json')[file]);
 }
-for (const name of ['pet-window.cjs','pet-observer.cjs','pet-state.cjs','pet-preload.cjs','pet.html','pet.js','pet.css']) assert.ok(extractFile(archive,path.normalize('src/'+name)).length);
+for (const name of ['pet-window.cjs','pet-observer.cjs','pet-state.cjs','pet-preload.cjs','pet.html','pet.js','pet.css','pet-motion.cjs','pet-settings.html','pet-settings.css','pet-settings.js','pet-settings-preload.cjs']) assert.ok(extractFile(archive,path.normalize('src/'+name)).length);
 assert.ok(extractFile(archive,path.normalize('assets/pet/NOTICE.md')).length);
 
 for (const file of ['update-core.cjs','updater.cjs','portable-update.cjs','portable-update.ps1']) assert.ok(extractFile(archive,path.normalize('src/'+file)).length, `missing updater file: ${file}`);

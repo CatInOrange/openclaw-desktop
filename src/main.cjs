@@ -15,6 +15,7 @@ function trayItems(){return [
  {label:'连接设置',click:openSettings},
  {label:'视频与外观…',click:openAppearance},
  {label:'显示桌宠',click:()=>petWindow?.show()},
+ {label:'桌宠设置…',click:()=>petWindow?.openSettings()},
  {type:'separator'},...(updater?.menu()||[]),
  {type:'separator'},{label:'退出',click:()=>app.quit()}
 ];}
@@ -284,6 +285,7 @@ else {
         {label: '连接设置', accelerator: 'CmdOrCtrl+L', click: openSettings},
         {label: '视频与外观…', accelerator: 'CmdOrCtrl+Shift+V', click: openAppearance},
         {label: '显示桌宠', click: () => petWindow?.show()},
+        {label: '桌宠设置…', click: () => petWindow?.openSettings()},
         {label: '检查更新…', click: () => void updater.check()},
         {label: '重新加载', accelerator: 'CmdOrCtrl+R', click: reconnect},
         {type: 'separator'}, {label: '退出', accelerator: 'CmdOrCtrl+Q', click: () => app.quit()},

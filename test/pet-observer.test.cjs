@@ -94,3 +94,22 @@ test('periodic authoritative approval replay clears missed terminal notification
   assert.ok(h.drain().some(e => e.type === 'approval' && e.approvalId === 'p1' && e.phase === 'resolved'));
   h.stop();
 });
+
+test('live approval arriving during stale replay is not cleared', async () => {
+  let replayRequest;
+  const h = harness(req => {
+    if (req.method === 'sessions.list') return {sessions: [{key: 'agent:a:idle', agentId: 'a', hasActiveRun: false}], hasMore: false};
+    if (req.method === 'sessions.messages.subscribe') { replayRequest = req; return undefined; }
+    return {};
+  });
+  await flush();
+  h.drain();
+  h.socket.emit('message', {type: 'event', event: 'session.approval', payload: {sessionKey: 'agent:a:idle', phase: 'pending', approval: {id: 'live'}}});
+  h.socket.emit('message', {type: 'res', id: replayRequest.id, ok: true, payload: {approvalReplay: {sessionKey: 'agent:a:idle', approvals: [], truncated: false}}});
+  await flush();
+  const events = h.drain();
+  assert.ok(events.some(e => e.type === 'approval' && e.approvalId === 'live' && e.phase === 'pending'));
+  assert.ok(!events.some(e => e.type === 'approval' && e.approvalId === 'live' && e.phase === 'resolved'));
+  assert.equal(events.find(e => e.type === 'snapshot').approvalsComplete, false);
+  h.stop();
+});

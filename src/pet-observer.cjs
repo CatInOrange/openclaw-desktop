@@ -10,7 +10,7 @@ function installPetObserver() {
   const Native = window.WebSocket;
   let socket = null, serial = 0, ready = false, reading = false, dirty = false;
   let readAgain = false, epoch = 0;
-  const approvals = new Map();
+  const approvals = new Map(), approvalRevisions = new Map();
   const push = event => {
     if (events.length >= 4096) { events.length = 0; events.push({type: 'connection', connected: false}); dirty = true; }
     events.push(event);
@@ -28,6 +28,7 @@ function installPetObserver() {
   function approval(p) {
     const a = p.approval;
     if (!a || typeof a.id !== 'string') return;
+    approvalRevisions.set(p.sessionKey, (approvalRevisions.get(p.sessionKey) || 0) + 1);
     const phase = p.phase === 'pending' ? 'pending' : 'resolved';
     if (phase === 'pending') approvals.set(a.id, {sessionKey: p.sessionKey, agentId: p.agentId}); else approvals.delete(a.id);
     push({type: 'approval', ...ident(p), approvalId: a.id, phase, expiresAt: a.expiresAtMs});
@@ -54,7 +55,7 @@ function installPetObserver() {
     const id = `${row.agentId || ''}|${row.key}`;
     const previous = subscriptions.get(id);
     if (previous?.admitted && Date.now() - previous.admittedAt < 30000) return true;
-    const generation = epoch;
+    const generation = epoch, approvalVersion = approvalRevisions.get(row.key) || 0;
     const params = {key: row.key, ...(row.agentId ? {agentId: row.agentId} : {}), mode: 'narration', subscriptionId: `pet-${id}`};
     subscriptions.set(id, {params, admitted: false});
     try {
@@ -67,6 +68,8 @@ function installPetObserver() {
       }
       if (generation !== epoch) return false;
       const replay = r?.approvalReplay;
+      // A live receipt overlapping replay must not be erased by an older replay.
+      if ((approvalRevisions.get(row.key) || 0) !== approvalVersion) return false;
       for (const a of replay?.approvals || []) approval({sessionKey: replay.sessionKey, agentId: row.agentId, phase: 'pending', approval: a});
       if (!replay || replay.truncated) return false;
       const current = new Set((replay.approvals || []).map(a => a.id));
@@ -120,7 +123,7 @@ function installPetObserver() {
     finally { reading = false; if (ready && (dirty || readAgain)) { readAgain = false; setTimeout(() => void refresh(), 300); } }
   }
   function disconnect() {
-    epoch++; ready = false; subscriptions.clear(); approvals.clear();
+    epoch++; ready = false; subscriptions.clear(); approvals.clear(); approvalRevisions.clear();
     for (const p of pending.values()) { clearTimeout(p.timer); p.reject(new Error('offline')); }
     pending.clear(); push({type: 'connection', connected: false});
   }

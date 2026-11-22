@@ -6,7 +6,7 @@ const WORKSPACE_CSS = fs.readFileSync(path.join(__dirname, 'workspace-chrome.css
 function applyWorkspaceChrome(settings) {
   const root = document.documentElement;
   if (!root || !document.body) return;
-  const enabled = settings.integratedChrome && settings.chromeActive && !settings.fullscreen;
+  const enabled = settings.chromeActive && ((settings.integratedChrome && !settings.fullscreen) || settings.musicControls);
   if (!enabled) {
     root.removeAttribute('data-oc-caption');
     root.removeAttribute('data-oc-caption-fallback');
@@ -17,7 +17,7 @@ function applyWorkspaceChrome(settings) {
   const zoom = Number.isFinite(settings.zoom) && settings.zoom > 0 ? settings.zoom : 1;
   const height = 48 / zoom;
   root.style.setProperty('--oc-caption-height', `${height}px`);
-  root.style.setProperty('--oc-caption-inset', settings.reserveControls ? `${144 / zoom}px` : '0px');
+  root.style.setProperty('--oc-caption-inset', settings.reserveControls ? `${((settings.integratedChrome && !settings.fullscreen ? 144 : 0) + (settings.musicControls ? 144 : 0)) / zoom}px` : '0px');
   root.setAttribute('data-oc-caption', 'on');
   const wasFallback = root.hasAttribute('data-oc-caption-fallback');
   let found = false;

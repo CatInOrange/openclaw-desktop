@@ -1,7 +1,7 @@
 {
   "name": "openclaw-desktop-shell",
   "productName": "OpenClaw Desktop",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": true,
   "description": "Independent desktop shell for the original OpenClaw Control UI",
   "author": "OpenClaw Desktop contributors",
@@ -51,7 +51,12 @@
     "asarUnpack": [
       "assets/video/*.mp4",
       "assets/pet/*.webm",
-      "src/portable-update-helper.exe"
+      "src/portable-update-helper.exe",
+      "src/music-worker.cjs",
+      "node_modules/**/*"
     ]
+  },
+  "dependencies": {
+    "@neteasecloudmusicapienhanced/api": "4.41.1"
   }
 }

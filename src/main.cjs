@@ -22,6 +22,9 @@ function trayItems(){return [
 const {createPetWindow} = require('./pet-window.cjs');
 const {watchPetGateway} = require('./pet-observer.cjs');
 let petWindow, stopPetObserver = () => {};
+const {createMusicPanel} = require('./music-panel.cjs');
+let musicPanel;
+const {safeStorage} = require('electron');
 const {windowChromeOptions, applyWindowChrome} = require('./window-chrome.cjs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
@@ -49,6 +52,7 @@ function publish(next) {
     state.nativeControls = process.platform === 'win32';
     state.integratedTitlebar = applyWindowChrome(win, state, process.platform);
     win.webContents.send('desktop:state', state);
+    musicPanel?.update({visible:state.phase === 'ready' && !state.bootPlaying,theme:state.theme});
   }
 }
 function stopRetry() { clearTimeout(retryTimer); clearTimeout(loadTimer); retryTimer = null; loadTimer = null; }
@@ -58,6 +62,7 @@ function placeView() {
   const previewWidth = state.phase === 'appearance' && viewLoaded ? Math.max(0, width - 380) : width;
   const top = process.platform === 'win32' || win.isFullScreen() ? 0 : 32;
   view.setBounds({x: 0, y: top, width: previewWidth, height: Math.max(0, height - top)});
+  musicPanel?.update({visible:state.phase === 'ready' && !state.bootPlaying,theme:state.theme});
 }
 function showWindow() { if (!win) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
 function updatePlayback() {backgroundSync?.refresh();}
@@ -145,7 +150,7 @@ function makeRemote() {
   }});
   view = remote;
   remote.setBackgroundColor((state.theme || DEFAULT_THEME).background);
-  win.contentView.addChildView(remote); placeView(); hideView();
+  win.contentView.addChildView(remote); musicPanel?.raise(); placeView(); hideView();
   const wc = remote.webContents;
   stopPetObserver = watchPetGateway(wc, event => petWindow?.event(event), {isTrusted: () => view === remote && !quitting && sameOrigin(wc.getURL(), config.gateway)});
   let themeErrorLogged = false;
@@ -166,7 +171,7 @@ function makeRemote() {
     enabled: Boolean(config.video.backgroundEnabled) && sameOrigin(wc.getURL(), config.gateway),
     strength: config.video.strength, glassTransparency: config.video.glassTransparency,
     integratedChrome: process.platform === 'win32', chromeActive: remoteVisible, fullscreen: win.isFullScreen(),
-    reserveControls: state.phase !== 'appearance', zoom: wc.getZoomFactor(), url: MEDIA_URL + 'background.mp4',
+    reserveControls: state.phase !== 'appearance', musicControls:state.phase === 'ready', zoom: wc.getZoomFactor(), url: MEDIA_URL + 'background.mp4',
     active: remoteVisible && !state.bootPlaying && win.isVisible() && !win.isMinimized(),
   }), status => {
     if (view === remote && !quitting && state.backgroundStatus !== status) publish({backgroundStatus: status});
@@ -303,6 +308,7 @@ else {
       const target = new URL(config.gateway); target.searchParams.set('session', key);
       view.webContents.loadURL(target.href).catch(() => {}); showWindow();
     }});
+    musicPanel = createMusicPanel({app,win,WebContentsView,ipcMain,safeStorage});
     buildTray();
     for (const event of ['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen']) {
       win.on(event, () => {
@@ -328,5 +334,5 @@ else {
   }).catch(error => {dialog.showErrorBox('OpenClaw Desktop 启动失败', error.message); app.exit(1);});
 }
 app.on('activate', showWindow);
-app.on('before-quit', () => {quitting = true; stopPetObserver(); petWindow?.stop(); clearTimeout(bootTimer); backgroundSync?.stop(); stopThemeSync(); stopRetry(); clearTimeout(saveTimer); if (configPath) saveWindow(); if (view && !view.webContents.isDestroyed()) view.webContents.close();});
+app.on('before-quit', () => {quitting = true; musicPanel?.stop(); stopPetObserver(); petWindow?.stop(); clearTimeout(bootTimer); backgroundSync?.stop(); stopThemeSync(); stopRetry(); clearTimeout(saveTimer); if (configPath) saveWindow(); if (view && !view.webContents.isDestroyed()) view.webContents.close();});
 app.on('window-all-closed', () => {if (quitting || !tray) app.quit();});

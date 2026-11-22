@@ -10,7 +10,7 @@ async function fixture(){
 test('managed install must match the current pointer, real executable location and fixed launcher',async()=>{
  const f=await fixture();try {
   assert.ok(safeVersion('0.4.7-beta.1'));for(const value of ['../oops','0.4.7/evil','v0.4.7',null])assert.equal(safeVersion(value),false);
-  const install=await detectDirectoryInstall(f);assert.equal(install.root,f.root);await writableDirectoryInstall(install);
+  const install=await detectDirectoryInstall(f);assert.ok(install,JSON.stringify({root:f.root,realRoot:await fs.realpath(f.root),exe:f.exe,realExe:await fs.realpath(f.exe)}));assert.equal(install.root,await fs.realpath(f.root));await writableDirectoryInstall(install);
   assert.equal(await detectDirectoryInstall({...f,rootHint:os.tmpdir()}),null);
   assert.equal(await detectDirectoryInstall({...f,version:'0.4.8'}),null);
   await fs.writeFile(path.join(f.root,'current.json'),JSON.stringify({schema:1,version:'../outside'}));assert.equal(await detectDirectoryInstall(f),null);
@@ -41,7 +41,7 @@ test('native directory handoff commits only the matching receipt and passes inde
   });
   assert.equal(received.args[0],'--apply');assert.equal(received.options.cwd,directory);assert.equal(received.options.detached,true);assert.equal(received.options.shell,undefined);
   const payload=JSON.parse(await fs.readFile(received.args[1],'utf8'));
-  assert.equal(payload.fromVersion,'0.4.7');assert.equal(payload.root,f.root);assert.match(payload.token,/^[a-f0-9]{48}$/);assert.equal(await fs.readFile(payload.commit,'utf8'),payload.token);
+  assert.equal(payload.fromVersion,'0.4.7');assert.equal(payload.root,await fs.realpath(f.root));assert.match(payload.token,/^[a-f0-9]{48}$/);assert.equal(await fs.readFile(payload.commit,'utf8'),payload.token);
  }finally{await f.cleanup();}
 });
 test('missing/wrong native receipt cancels a directory handoff without switching the current pointer',async()=>{

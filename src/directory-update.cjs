@@ -9,14 +9,17 @@ async function normalFile(file) {const stat=await fs.lstat(file);if(!stat.isFile
 async function normalDirectory(directory) {const stat=await fs.lstat(directory);if(!stat.isDirectory()||stat.isSymbolicLink())throw new Error('目录版文件夹不能是链接');}
 async function detectDirectoryInstall({exe,version,rootHint}) {
  if(!safeVersion(version)||!exe||!path.isAbsolute(exe)||path.basename(exe)!=='OpenClaw Desktop.exe')return null;
- const root=path.resolve(rootHint||path.join(path.dirname(exe),'../..'));
+ const candidate=path.resolve(rootHint||path.join(path.dirname(exe),'../..'));
  if(!rootHint&&path.basename(path.dirname(exe))!==version)return null;
- const expected=path.join(root,'versions',version,'OpenClaw Desktop.exe');
- if(!samePath(path.resolve(exe),expected))return null;
  try {
-  await normalDirectory(root);await normalDirectory(path.join(root,'versions'));await normalDirectory(path.dirname(expected));
+  // Windows TEMP and shortcuts can use 8.3 aliases. Compare physical locations,
+  // while rejecting links in the installation's own version/entry paths.
+  await normalDirectory(candidate);await normalFile(exe);
+  const root=await fs.realpath(candidate),actual=await fs.realpath(exe);
+  const expected=path.join(root,'versions',version,'OpenClaw Desktop.exe');
+  await normalDirectory(path.join(root,'versions'));await normalDirectory(path.dirname(expected));
   await normalFile(expected);await normalFile(path.join(root,'OpenClaw.exe'));
-  if(!samePath(await fs.realpath(root),root)||!samePath(await fs.realpath(expected),expected))return null;
+  if(!samePath(actual,expected))return null;
   const pointerPath=path.join(root,'current.json'),stat=await normalFile(pointerPath);
   if(stat.size>4096)return null;
   const pointer=JSON.parse(await fs.readFile(pointerPath,'utf8'));

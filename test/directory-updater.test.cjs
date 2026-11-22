@@ -14,7 +14,7 @@ async function harness(consent=[0,0],valid=true,helperFails=false){
  const updater=createUpdater({platform:'win32',env:{OPENCLAW_INSTALL_ROOT:root},app:{isPackaged:true,getVersion:()=> '0.4.7',getPath:kind=>kind==='exe'?exe:root,quit:()=>quits++},config:{},save(){},getWindow:()=>null,
   dialog:{showMessageBox:async message=>{messages.push(message);return {response:consent.shift()??1};}},
   fetcher:async url=>{requests++;return new Response(url.includes('api.github')?JSON.stringify([r]):url.endsWith('SHA256SUMS')?`${hash}  ${name}\n`:bytes);},
-  replace:()=>{throw new Error('Wrong portable update path');},directoryReplace:async args=>{if(helperFails)throw new Error('directory helper failed');assert.equal(args.install.root,root);assert.equal(path.basename(args.file),'download.zip');assert.equal(await fs.readFile(args.file,'utf8'),'zip');replaces++;},
+  replace:()=>{throw new Error('Wrong portable update path');},directoryReplace:async args=>{if(helperFails)throw new Error('directory helper failed');assert.equal(args.install.root,await fs.realpath(root));assert.equal(path.basename(args.file),'download.zip');assert.equal(await fs.readFile(args.file,'utf8'),'zip');replaces++;},
  });
  return {root,updater,messages,quits:()=>quits,replaces:()=>replaces,requests:()=>requests,cleanup:()=>fs.rm(root,{recursive:true,force:true})};
 }

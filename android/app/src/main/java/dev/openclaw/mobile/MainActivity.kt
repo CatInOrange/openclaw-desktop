@@ -252,8 +252,16 @@ class MainActivity : Activity() {
             }
         }
         gecko.permissionDelegate = object : GeckoSession.PermissionDelegate {
-            override fun onContentPermissionRequest(session: GeckoSession, perm: GeckoSession.PermissionDelegate.ContentPermission): GeckoResult<Int> =
-                GeckoResult.fromValue(GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY)
+            override fun onContentPermissionRequest(session: GeckoSession, perm: GeckoSession.PermissionDelegate.ContentPermission): GeckoResult<Int> {
+                // Blanket DENY also blocks the bundled, muted wallpaper video.
+                val current = gateway
+                val silentGatewayVideo = current != null &&
+                    perm.permission == GeckoSession.PermissionDelegate.PERMISSION_AUTOPLAY_INAUDIBLE &&
+                    GatewayPolicy.sameOrigin(perm.uri, current.url)
+                return GeckoResult.fromValue(if (silentGatewayVideo)
+                    GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW
+                else GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY)
+            }
         }
         gecko.promptDelegate = object : GeckoSession.PromptDelegate {
             override fun onFilePrompt(session: GeckoSession, prompt: GeckoSession.PromptDelegate.FilePrompt): GeckoResult<GeckoSession.PromptDelegate.PromptResponse> {

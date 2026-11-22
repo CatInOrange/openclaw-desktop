@@ -282,6 +282,7 @@ class MainActivity : Activity() {
         val target = savedState?.getString("pageUrl")?.takeIf { GatewayPolicy.sameOrigin(it, address.url) } ?: address.url
         // Install before navigation so the very first page gets isolated styling.
         runtime.webExtensionController.ensureBuiltIn("resource://android/assets/appearance/", "appearance@openclaw.mobile").accept({ extension ->
+            runOnUiThread {
             if (!isDestroyed && !isFinishing && extension != null) {
                 gecko.webExtensionController.setMessageDelegate(extension, object : WebExtension.MessageDelegate {
                     override fun onMessage(nativeApp: String, message: Any, sender: WebExtension.MessageSender): GeckoResult<Any>? {
@@ -300,8 +301,11 @@ class MainActivity : Activity() {
                 }, "appearance")
                 gecko.loadUri(target)
             }
+            }
         }, { _ ->
-            if (!isDestroyed && !isFinishing) { toast("外观加载失败，已恢复原版界面"); gecko.loadUri(target) }
+            runOnUiThread {
+                if (!isDestroyed && !isFinishing) { toast("外观加载失败，已恢复原版界面"); gecko.loadUri(target) }
+            }
         })
     }
 

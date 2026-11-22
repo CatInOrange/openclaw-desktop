@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $payload = Get-Content -LiteralPath $PayloadPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $replaced = $false
 $clientExited = $false
+$committed = $false
 $backup = $payload.target + '.previous.exe'
 $incoming = $payload.target + '.update-new'
 function Write-Result([string]$phase,[string]$message) {
@@ -19,12 +20,23 @@ function Start-Client {
  [Diagnostics.Process]::Start($start) | Out-Null
 }
 try {
- if ((Get-FileHash -LiteralPath $payload.source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $payload.hash) { throw 'Downloaded update checksum mismatch' }
- # A readiness receipt lets the client stay open if PowerShell cannot start.
- 'ready' | Set-Content -LiteralPath $payload.ready -Encoding ASCII
+ # Acknowledge bootstrap before hashing the large EXE. The client already
+ # verified its download; the helper verifies it again only after handoff.
+ $payload.token | Set-Content -LiteralPath $payload.ready -Encoding ASCII
+ $commitDeadline = [DateTime]::UtcNow.AddSeconds(40)
+ $committed = $false
+ do {
+  if (Test-Path -LiteralPath $payload.cancel) { throw 'Update handoff cancelled' }
+  if (Test-Path -LiteralPath $payload.commit) {
+   if ((Get-Content -LiteralPath $payload.commit -Raw).Trim() -eq $payload.token) { $committed=$true; break }
+  }
+  Start-Sleep -Milliseconds 100
+ } while ([DateTime]::UtcNow -lt $commitDeadline)
+ if (-not $committed) { throw 'No client commit received; no files replaced' }
  $parent = Get-Process -Id $payload.pid -ErrorAction SilentlyContinue
  if ($parent -and -not $parent.WaitForExit(60000)) { throw 'Client did not exit; update cancelled' }
  $clientExited = $true
+ if ((Get-FileHash -LiteralPath $payload.source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $payload.hash) { throw 'Downloaded update checksum mismatch' }
  Copy-Item -LiteralPath $payload.source -Destination $incoming -Force
  if ((Get-FileHash -LiteralPath $incoming -Algorithm SHA256).Hash.ToLowerInvariant() -ne $payload.hash) { throw 'Staged update checksum mismatch' }
  # The portable NSIS launcher may hold the EXE after Electron exits. Retry
@@ -44,7 +56,8 @@ try {
    $replaced = $false
   } catch { $failure += '; rollback failed: ' + $_.Exception.Message }
  }
- Write-Result 'failed' $failure
+ Write-Output ('Updater: ' + $failure)
+ if ($committed) { Write-Result 'failed' $failure }
  if ($clientExited -and -not $replaced) {
   try { Start-Client } catch {}
  }

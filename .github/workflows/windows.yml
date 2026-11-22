@@ -40,6 +40,9 @@ jobs:
       - name: Verify portable replacement and rollback (non-GUI)
         shell: powershell
         run: ./scripts/test-portable-update.ps1
+      - name: Verify actual detached updater handoff (non-GUI)
+        shell: pwsh
+        run: node scripts/test-portable-handoff.cjs
       - name: Package Windows x64 portable
         run: npm run dist:win -- --publish never
       - name: Verify packaged media and runtime (non-GUI)

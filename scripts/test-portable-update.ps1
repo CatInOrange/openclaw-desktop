@@ -16,7 +16,9 @@ try {
   if ($scenario -eq 'hash-failure') { $hash = '0' * 64 }
   $result = Join-Path $dir 'result.json'
   $payload = Join-Path $dir 'payload.json'
-  @{target=$target;source=$source;hash=$hash;result=$result;ready=(Join-Path $dir 'ready');version='test';pid=2147483647} | ConvertTo-Json | Set-Content -LiteralPath $payload -Encoding UTF8
+  $commit = Join-Path $dir 'commit'
+  'test-token' | Set-Content -LiteralPath $commit -Encoding ASCII
+  @{commit=$commit;cancel=(Join-Path $dir 'cancel');token='test-token';target=$target;source=$source;hash=$hash;result=$result;ready=(Join-Path $dir 'ready');version='test';pid=2147483647} | ConvertTo-Json | Set-Content -LiteralPath $payload -Encoding UTF8
   & (Join-Path $PSScriptRoot '..\src\portable-update.ps1') -PayloadPath $payload
   $outcome = Get-Content -LiteralPath $result -Raw | ConvertFrom-Json
   $after = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()

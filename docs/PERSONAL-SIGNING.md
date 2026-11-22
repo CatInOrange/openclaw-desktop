@@ -19,7 +19,7 @@
 从同一 Release 下载 `personal-sign.ps1`、`SHA256SUMS` 与 EXE，先阅读脚本。在该目录打开 PowerShell，把下面的版本号和哈希换成你下载版本的实际值：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\personal-sign.ps1 -ExePath .\OpenClaw-Desktop-0.3.5-win-x64.exe -ExpectedSha256 '填入SHA256SUMS中的64位哈希' -TrustCurrentUser
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\personal-sign.ps1 -ExePath .\OpenClaw-Desktop-0.3.6-win-x64.exe -ExpectedSha256 '填入SHA256SUMS中的64位哈希' -TrustCurrentUser
 ```
 
 此命令的 `Bypass` 仅用于该 PowerShell 进程，不修改账户或系统执行策略。首次执行可能出现 Windows 对添加受信任证书的确认，请确认它是你刚生成的专用个人证书。
@@ -27,7 +27,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\personal-sign.ps1 -Exe
 成功后用以下命令查看签名，再运行 `.personal.exe` 副本：
 
 ```powershell
-Get-AuthenticodeSignature .\OpenClaw-Desktop-0.3.5-win-x64.personal.exe | Format-List Status,StatusMessage,SignerCertificate
+Get-AuthenticodeSignature .\OpenClaw-Desktop-0.3.6-win-x64.personal.exe | Format-List Status,StatusMessage,SignerCertificate
 ```
 
 应显示 `Valid`。以后新版重复执行同一签名命令即可；已信任的证书会复用，通常不必再加 `-TrustCurrentUser`。

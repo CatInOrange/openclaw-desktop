@@ -1,4 +1,4 @@
-# OpenClaw Desktop — 0.3.5 Preview
+# OpenClaw Desktop — 0.3.6 Preview
 
 独立 Electron 桌面壳，加载 Gateway 提供的原版 Control UI。非官方客户端；不修改 DSH、OpenClaw Gateway 或服务器 UI 文件。
 
@@ -14,7 +14,7 @@
 
 ## 使用
 
-退出旧版本后运行 `OpenClaw-Desktop-0.3.5-win-x64.exe`，无需安装 Node.js 或 DSH，需要已有可访问的 Gateway。
+退出旧版本后运行 `OpenClaw-Desktop-0.3.6-win-x64.exe`，无需安装 Node.js 或 DSH，需要已有可访问的 Gateway。
 
 输入完整 Gateway URL，例如 `https://claw.example.com`、`http://127.0.0.1:18789` 或自定义路径。不要把 Token 放进地址；登录和设备配对在原版 Control UI 中完成。
 

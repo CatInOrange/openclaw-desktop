@@ -42,6 +42,7 @@ jobs:
       - name: Verify packaged media and runtime (non-GUI)
         run: node scripts/verify-package.cjs dist/win-unpacked/resources
       - name: Verify personal signing on a disposable copy (non-GUI)
+        timeout-minutes: 5
         shell: pwsh
         run: |
           $signTest = Join-Path $env:RUNNER_TEMP 'personal-sign-test'
@@ -52,7 +53,11 @@ jobs:
           $hash = (Get-FileHash $probe -Algorithm SHA256).Hash
           $signState = Join-Path $signTest 'state'
           try {
-            & ./scripts/personal-sign.ps1 -ExePath $probe -ExpectedSha256 $hash -TrustCurrentUser -StateDirectory $signState
+            # CurrentUser Root import requires human consent. Do not exercise that
+            # interactive path on a headless runner. Trust only this disposable
+            # certificate in the runner's machine Root store for verification.
+            & ./scripts/personal-sign.ps1 -ExePath $probe -ExpectedSha256 $hash -StateDirectory $signState
+            Import-Certificate -FilePath (Join-Path $signState 'OpenClaw-Desktop-Personal.cer') -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
             $signature = Get-AuthenticodeSignature (Join-Path $signTest 'probe.personal.exe')
             if ($signature.Status -ne 'Valid') { throw "Test signature status: $($signature.Status)" }
             if ((Get-FileHash $probe -Algorithm SHA256).Hash -ne $hash) { throw 'Original EXE changed' }
@@ -60,8 +65,8 @@ jobs:
             $thumbFile = Join-Path $signState 'signer-thumbprint.txt'
             if (Test-Path $thumbFile) {
               $thumb = (Get-Content $thumbFile -Raw).Trim()
-              foreach ($store in @('My', 'Root', 'TrustedPublisher')) {
-                $certPath = "Cert:\CurrentUser\$store\$thumb"
+              foreach ($storePath in @('CurrentUser\My', 'LocalMachine\Root')) {
+                $certPath = "Cert:\$storePath\$thumb"
                 if (Test-Path $certPath) { Remove-Item $certPath -Force }
               }
             }

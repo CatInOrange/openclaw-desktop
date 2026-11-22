@@ -18,6 +18,7 @@ if (Test-Path -LiteralPath $destination) { throw "Output already exists: $destin
 $settingsDir = $StateDirectory
 $thumbFile = Join-Path $settingsDir 'signer-thumbprint.txt'
 New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
+Write-Output 'Preparing personal signing certificate (private key stays on Windows).'
 if (Test-Path -LiteralPath $thumbFile) {
     $thumb = (Get-Content -LiteralPath $thumbFile -Raw).Trim()
     if ($thumb -notmatch '^[A-Fa-f0-9]{40}$') { throw 'Invalid saved certificate thumbprint.' }
@@ -36,10 +37,12 @@ if ($TrustCurrentUser) {
             $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
             # Public certificate only; signing key stays non-exportable in My.
             $publicCert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($publicPath)
+            Write-Output "Installing public certificate in CurrentUser\$storeName (Windows may ask for consent)."
             $store.Add($publicCert)
         } finally { $store.Close() }
     }
 }
+Write-Output 'Signing a copy of the verified EXE.'
 Copy-Item -LiteralPath $source -Destination $destination
 $result = Set-AuthenticodeSignature -LiteralPath $destination -Certificate $cert -HashAlgorithm SHA256 -IncludeChain Signer
 if ($null -eq $result.SignerCertificate -or $result.SignerCertificate.Thumbprint -ne $cert.Thumbprint) { throw 'Signature was not applied.' }

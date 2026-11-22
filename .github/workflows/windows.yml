@@ -112,6 +112,9 @@ jobs:
           node scripts/build-directory-package.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Compress-Archive -Path dist/directory/* -DestinationPath "dist/OpenClaw-Desktop-$version-win-x64-directory.zip" -CompressionLevel Optimal
+      - name: Verify final directory ZIP with shipped native parser (no GUI)
+        shell: powershell
+        run: ./scripts/verify-directory-archive.ps1
       - name: Create checksums and include quick-start
         shell: pwsh
         run: |

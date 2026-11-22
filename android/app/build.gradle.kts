@@ -5,7 +5,7 @@ plugins {
 android {
     namespace = "dev.openclaw.mobile"
     buildFeatures { buildConfig = true }
-    compileSdk = 37
+    compileSdk { version = release(37) { minorApiLevel = 0 } }
     defaultConfig {
         applicationId = "dev.openclaw.mobile"
         minSdk = 28

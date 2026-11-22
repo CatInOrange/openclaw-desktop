@@ -46,7 +46,7 @@ jobs:
           packages: 'platform-tools'
           log-accepted-android-sdk-licenses: false
       - name: Install pinned Android platform and tools
-        run: sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}

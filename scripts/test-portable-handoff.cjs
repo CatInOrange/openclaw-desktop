@@ -35,7 +35,7 @@ async function main(){
   await fs.copyFile(path.join(process.env.SystemRoot,'System32','where.exe'),target);await fs.copyFile(path.join(process.env.SystemRoot,'System32','whoami.exe'),file);
   const oldHash=hash(await fs.readFile(target)),newHash=hash(await fs.readFile(file)),input=path.join(dir,'caller.json');
   await fs.writeFile(input,JSON.stringify({target,file,hash:newHash,directory:dir,result,version:'test'}));
-  const executable=runtime==='node'?process.execPath:path.join(__dirname,'..','node_modules','electron','dist','electron.exe');
+  const executable=runtime==='node'?process.execPath:path.join(__dirname,'..','dist','win-unpacked','OpenClaw Desktop.exe');
   const caller=spawn(executable,[__filename,'--caller',input],{env:{...process.env,...(runtime==='electron'?{ELECTRON_RUN_AS_NODE:'1'}:{})},windowsHide:true,stdio:['ignore','pipe','pipe']});let output='';caller.stdout.on('data',b=>{output+=b;});caller.stderr.on('data',b=>{output+=b;});
   const code=await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('Caller did not exit')),40000);caller.once('exit',code=>{clearTimeout(t);resolve(code);});caller.once('error',e=>{clearTimeout(t);reject(e);});});assert.equal(code,0,output);
   const deadline=Date.now()+15000;let outcome;

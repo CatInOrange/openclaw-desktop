@@ -40,13 +40,13 @@ jobs:
           if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
           npm test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Verify actual updater handoff and parent exit (non-GUI)
-        shell: pwsh
-        run: node scripts/test-portable-handoff.cjs
       - name: Package Windows x64 portable
         run: npm run dist:win -- --publish never
       - name: Verify packaged media and runtime (non-GUI)
         run: node scripts/verify-package.cjs dist/win-unpacked/resources
+      - name: Verify actual updater handoff and parent exit (non-GUI)
+        shell: pwsh
+        run: node scripts/test-portable-handoff.cjs
       - name: Verify personal signing on a disposable copy (non-GUI)
         timeout-minutes: 5
         shell: pwsh

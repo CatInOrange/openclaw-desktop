@@ -8,18 +8,23 @@ html[data-oc-video="on"] .shell:not(.shell--settings){background-color:color-mix
 /* The wallpaper is one full-viewport layer; chrome shows it through frosted glass.
    Only docked chrome is affected, never floating dialogs/popovers or settings. */
 html[data-oc-video="on"] .shell:not(.shell--settings){
-  --oc-video-glass-bg:color-mix(in srgb,var(--bg) 38%,transparent);
+  --oc-video-glass-bg:color-mix(in srgb,var(--bg) 22%,transparent);
   --oc-video-glass-line:color-mix(in srgb,var(--text) 14%,transparent);
 }
 html[data-oc-video="on"][data-theme-mode="light"] .shell:not(.shell--settings){
-  --oc-video-glass-bg:color-mix(in srgb,var(--bg) 54%,transparent);
+  --oc-video-glass-bg:color-mix(in srgb,var(--bg) 36%,transparent);
 }
 html[data-oc-video="on"] .shell:not(.shell--settings) :is(.sidebar,.topbar,.chat-pane__header,.chat-details--docked){
   background:var(--oc-video-glass-bg)!important;
-  -webkit-backdrop-filter:blur(18px) saturate(1.12)!important;
-  backdrop-filter:blur(18px) saturate(1.12)!important;
+  -webkit-backdrop-filter:blur(12px) saturate(1.12)!important;
+  backdrop-filter:blur(12px) saturate(1.12)!important;
   border-color:var(--oc-video-glass-line)!important;
 }
 html[data-oc-video="on"] .shell:not(.shell--settings) .sidebar{
   --sidebar-bg:var(--oc-video-glass-bg);
 }
+
+/* Fresh native view reveal; respect reduced motion. */
+html[data-oc-enter] body{animation:oc-desktop-enter 520ms ease-out both}
+@keyframes oc-desktop-enter{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){html[data-oc-enter] body{animation:none}}

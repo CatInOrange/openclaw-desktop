@@ -41,9 +41,13 @@ function showWindow() { if (!win) return; if (win.isMinimized()) win.restore(); 
 function updatePlayback() {backgroundSync?.refresh();}
 function hideView() {remoteVisible = false; if (view) view.setVisible(false); updatePlayback();}
 function syncRemoteVisibility() {
+  const wasVisible = remoteVisible;
   remoteVisible = ['ready', 'appearance'].includes(state.phase) && !state.bootPlaying && viewLoaded;
   placeView();
-  if (view) view.setVisible(remoteVisible);
+  if (view) {
+    view.setVisible(remoteVisible);
+    if (remoteVisible && !wasVisible) view.webContents.executeJavaScriptInIsolatedWorld(1002, [{code: "document.documentElement.removeAttribute('data-oc-enter'); void document.body.offsetWidth; document.documentElement.setAttribute('data-oc-enter', '');"}]).catch(() => {});
+  }
   updatePlayback();
 }
 function finishBoot() {
@@ -112,6 +116,8 @@ function makeRemote() {
   const remote = new WebContentsView({webPreferences: {
     partition: 'persist:control-ui', nodeIntegration: false, contextIsolation: true,
     sandbox: true, webSecurity: true, allowRunningInsecureContent: false,
+    // Keep UI hydration and WebSocket work running behind the opening video.
+    backgroundThrottling: false,
   }});
   view = remote;
   remote.setBackgroundColor((state.theme || DEFAULT_THEME).background);

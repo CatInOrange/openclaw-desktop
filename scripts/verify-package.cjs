@@ -10,7 +10,7 @@ const archive = path.join(resources, 'app.asar');
 const expectedVersion = require('../package.json').version;
 assert.equal(JSON.parse(extractFile(archive, 'package.json')).version, expectedVersion);
 // @electron/asar walks directories by path.sep; nested POSIX strings fail on Windows.
-for (const file of ['src/main.cjs', 'src/preload.cjs', 'src/shell.html', 'src/shell.js', 'src/boot.js', 'src/media.cjs', 'src/video-config.cjs', 'src/background.cjs', 'src/background.css', 'assets/video/NOTICE.md', 'assets/video/LICENSE.dsh-video-skin']) {
+for (const file of ['assets/icon.png', 'assets/icon.ico', 'src/main.cjs', 'src/preload.cjs', 'src/shell.html', 'src/shell.js', 'src/boot.js', 'src/media.cjs', 'src/video-config.cjs', 'src/background.cjs', 'src/background.css', 'assets/video/NOTICE.md', 'assets/video/LICENSE.dsh-video-skin']) {
   assert.ok(extractFile(archive, path.normalize(file)).length > 0, `missing packaged file: ${file}`);
 }
 for (const [file, hash] of [['boot.mp4', 'e95b45d08d6bdbb0b42f97dc3bcb3891debd27347a1ab9589d257a305abae2db'], ['background.mp4', '9187a3947dca8ce83e2832ac3d884a05fc36349e253a29b5b11bb4f829ece937']]) {

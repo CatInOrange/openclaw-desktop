@@ -31,7 +31,9 @@ function applyBackground(settings) {
     layer.id = 'oc-desktop-video'; layer.setAttribute('aria-hidden', 'true');
     const video = document.createElement('video');
     video.muted = true; video.defaultMuted = true; video.volume = 0; video.loop = true;
-    video.playsInline = true; video.preload = 'none'; video.disablePictureInPicture = true;
+    video.playsInline = true; video.preload = 'auto'; video.disablePictureInPicture = true;
+    // Preload behind the opening video; playback remains visibility-gated.
+    video.src = settings.url; video.load();
     layer.appendChild(video); document.body.prepend(layer);
     runtime.layer = layer; runtime.video = video; runtime.state = 'loading';
     video.addEventListener('playing', () => {

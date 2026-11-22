@@ -20,6 +20,7 @@ async function fixture(video = {}) {
     constructor() {super(); this.url = ''; this.mainFrame = {url: ''};}
     setWindowOpenHandler() {} isDestroyed() {return false;}
     loadURL(url) {this.url = url; this.mainFrame.url = url; return Promise.resolve();}
+    executeJavaScriptInIsolatedWorld(_world, scripts) {this.reveals = (this.reveals || 0) + 1; return Promise.resolve();}
     getURL() {return this.url;}
     send() {} close() {} stop() {}
   }
@@ -34,7 +35,7 @@ async function fixture(video = {}) {
     restore() {this.minimized = false; this.emit('restore');}
   }
   class View {
-    constructor() {remote = this; this.webContents = new Contents();}
+    constructor(options) {remote = this; this.options = options; this.webContents = new Contents();}
     setBounds(value) {this.bounds = value;} setVisible(value) {this.visible = value;} setBackgroundColor() {}
   }
   class Tray extends EventEmitter {setToolTip() {} setContextMenu() {}}
@@ -63,10 +64,13 @@ async function fixture(video = {}) {
 test('boot gates the ready view, finishes once, and never restarts on reconnect or tray restore', async () => {
   const f = await fixture();
   try {
+    assert.equal(f.remote.options.webPreferences.backgroundThrottling, false);
+    assert.equal(f.remote.webContents.getURL(), 'https://claw.example.com/');
     assert.equal(f.hooks.getState().bootPlaying, true);
     f.remote.webContents.emit('did-finish-load');
     assert.equal(f.hooks.getState().phase, 'ready'); assert.equal(f.remote.visible, false);
-    f.hooks.finishBoot(); assert.equal(f.remote.visible, true); assert.equal(f.settings().active, true);
+    assert.equal(f.remote.webContents.reveals || 0, 0);
+    f.hooks.finishBoot(); assert.equal(f.remote.webContents.reveals, 1); assert.equal(f.remote.visible, true); assert.equal(f.settings().active, true);
     f.window.hide(); assert.equal(f.settings().active, false);
     f.window.show(); assert.equal(f.settings().active, true); assert.equal(f.hooks.getState().bootPlaying, false);
     f.hooks.reconnect(); f.remote.webContents.emit('did-finish-load');

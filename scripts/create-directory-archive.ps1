@@ -4,7 +4,7 @@ $project = Split-Path $PSScriptRoot -Parent
 $version = (Get-Content (Join-Path $project 'package.json') -Raw | ConvertFrom-Json).version
 if (-not $Directory) { $Directory = Join-Path $project 'dist\directory' }
 if (-not $Destination) { $Destination = Join-Path $project "dist\OpenClaw-Desktop-$version-win-x64-directory.zip" }
-$Directory = [IO.Path]::GetFullPath($Directory).TrimEnd('\','/')
+$Directory = [IO.Path]::GetFullPath($Directory).TrimEnd([char[]]"\/")
 $Destination = [IO.Path]::GetFullPath($Destination)
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem

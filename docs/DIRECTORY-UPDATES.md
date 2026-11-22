@@ -51,3 +51,8 @@ OpenClaw/
 非 GUI 检查覆盖安装识别、ZIP/EXE 选择隔离、下载校验、取消不退出、token 握手、真实 Node/Electron Node 模式父进程退出、完整部署、ZIP/manifest 错误、穿越/重复路径拒绝、健康失败回退、无提交不更新等。新启动客户端使用原生无界面探针，不运行 Electron GUI。
 
 用户本机仍需验收固定启动器、托盘更新提示、重启后的真实窗口和设置保留。回执表示本地窗口已显示，不表示 Gateway 已连接，也不是对之后所有运行时故障的自动修复。
+
+
+## 构建约束
+
+目录包必须使用 `scripts/create-directory-archive.ps1` 显式生成统一的正斜杠 ZIP 路径；Windows 默认压缩工具生成的路径曾被严格解析器拒绝，不能靠放宽路径校验解决。CI 先用小包预检生产者与原生解析器，再对实际最终 ZIP 调用随包原生 Extract/ValidateDistribution，仅解包校验，不启动 GUI。

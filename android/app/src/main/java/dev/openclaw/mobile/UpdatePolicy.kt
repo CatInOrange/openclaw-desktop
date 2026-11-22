@@ -44,7 +44,7 @@ object UpdatePolicy {
         }
         return best
     }
-    const val MAX_APK = 100L * 1024 * 1024
+    const val MAX_APK = 250L * 1024 * 1024
     fun checksum(text: String, name: String): String {
         return text.lineSequence().map { it.trim().split(Regex("\\s+"), limit = 2) }
             .firstOrNull { it.size == 2 && it[1].removePrefix("*") == name && Regex("[a-fA-F0-9]{64}").matches(it[0]) }

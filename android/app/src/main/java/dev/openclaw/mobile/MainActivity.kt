@@ -1,6 +1,5 @@
 package dev.openclaw.mobile
 
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
@@ -8,7 +7,6 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
-import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -21,17 +19,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowInsetsController
-import android.webkit.CookieManager
-import android.webkit.GeolocationPermissions
-import android.webkit.PermissionRequest
-import android.webkit.SslErrorHandler
-import android.webkit.ValueCallback
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -41,10 +28,9 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import android.window.OnBackInvokedDispatcher
-import java.io.ByteArrayInputStream
-import java.net.URI
-import java.util.Collections
 import java.util.concurrent.Executors
+import java.io.File
+import org.mozilla.geckoview.*
 
 /** Android-native connection shell. Remote content never receives a native JS bridge. */
 class MainActivity : Activity() {
@@ -57,13 +43,15 @@ class MainActivity : Activity() {
     private lateinit var retryButton: Button
     private lateinit var progress: ProgressBar
     private lateinit var subtitle: TextView
-    private var browser: WebView? = null
+    private var browser: GeckoView? = null
+    private var session: GeckoSession? = null
+    private var canGoBack = false
     @Volatile private var gateway: GatewayPolicy.Address? = null
     private var lastInternalUrl: String? = null
     private var mainFrameFailed = false
     private var settingsDialog: AlertDialog? = null
-    private var pendingFile: ValueCallback<Array<Uri>>? = null
-    private val selectedContent = Collections.synchronizedSet(mutableSetOf<String>())
+    private var pendingFile: GeckoSession.PromptDelegate.FilePrompt? = null
+    private var pendingResult: GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? = null
     private val documentExecutor = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -73,6 +61,7 @@ class MainActivity : Activity() {
             finish()
             return
         }
+        File(cacheDir, "attachments").listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 24L * 60 * 60 * 1000 }?.forEach { it.delete() }
         createNativeUi()
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
@@ -172,14 +161,12 @@ class MainActivity : Activity() {
         val address = gateway ?: return
         if (url == null || url == "about:blank" || url.startsWith("chrome-error:")) return
         if (GatewayPolicy.navigation(url, address.url) != GatewayPolicy.Navigation.INTERNAL) {
-            browser?.stopLoading()
+            session?.stop()
             showStatus("跳转已阻止", "页面尝试离开当前 Gateway。请通过设置明确切换服务器。")
             return
         }
-        pendingFile?.onReceiveValue(null)
-        pendingFile = null
-        selectedContent.clear()
-        browser?.settings?.allowContentAccess = false
+        cancelFilePrompt()
+
         lastInternalUrl = url
         mainFrameFailed = false
         overlay.visibility = View.GONE
@@ -187,134 +174,100 @@ class MainActivity : Activity() {
         progress.visibility = View.VISIBLE
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    private fun cancelFilePrompt() {
+        val prompt = pendingFile
+        pendingFile = null
+        val result = pendingResult
+        pendingResult = null
+        if (prompt != null && result != null) runCatching { result.complete(prompt.dismiss()) }
+    }
+
     private fun connect(address: GatewayPolicy.Address, savedState: Bundle? = null) {
         gateway = address
-        subtitle.text = address.host
-        WebViewProfile.prepare(address.origin)
-        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        val web = WebView(this)
+        subtitle.text = "${address.host} · Gecko 160"
+        val runtime = GeckoProfile.prepare(this, address.origin)
+        val web = GeckoView(this)
         browser = web
-        web.setBackgroundColor(background())
-        web.settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            allowFileAccess = false
-            allowContentAccess = false
-            @Suppress("DEPRECATION")
-            allowFileAccessFromFileURLs = false
-            @Suppress("DEPRECATION")
-            allowUniversalAccessFromFileURLs = false
-            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            javaScriptCanOpenWindowsAutomatically = false
-            setSupportMultipleWindows(false)
-            useWideViewPort = true
-            loadWithOverviewMode = true
-            mediaPlaybackRequiresUserGesture = true
-        }
-        CookieManager.getInstance().apply { setAcceptCookie(true); setAcceptThirdPartyCookies(web, false) }
-        web.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                val target = request.url.toString()
-                val current = gateway ?: return true
-                return when (GatewayPolicy.navigation(target, current.url)) {
-                    GatewayPolicy.Navigation.INTERNAL -> false
+        val gecko = GeckoSession()
+        session = gecko
+        gecko.navigationDelegate = object : GeckoSession.NavigationDelegate {
+            override fun onLoadRequest(session: GeckoSession, request: GeckoSession.NavigationDelegate.LoadRequest): GeckoResult<AllowOrDeny> {
+                val current = gateway ?: return GeckoResult.fromValue(AllowOrDeny.DENY)
+                return when (GatewayPolicy.navigation(request.uri, current.url)) {
+                    GatewayPolicy.Navigation.INTERNAL -> GeckoResult.fromValue(AllowOrDeny.ALLOW)
                     GatewayPolicy.Navigation.EXTERNAL -> {
-                        if (request.isForMainFrame && request.hasGesture()) openExternal(target)
-                        else if (request.isForMainFrame) showStatus("跳转已阻止", "当前页面跳转到了其他服务器。外部网站需主动点击打开，切换 Gateway 请使用设置。")
-                        true
+                        if (request.hasUserGesture) openExternal(request.uri)
+                        else showStatus("跳转已阻止", "页面尝试离开当前 Gateway。切换服务器请使用设置。")
+                        GeckoResult.fromValue(AllowOrDeny.DENY)
                     }
-                    GatewayPolicy.Navigation.BLOCKED -> { if (request.isForMainFrame) toast("不支持此类型的链接"); true }
+                    GatewayPolicy.Navigation.BLOCKED -> GeckoResult.fromValue(AllowOrDeny.DENY)
                 }
             }
-            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                val uri = request.url
-                val scheme = uri.scheme?.lowercase()
-                if (scheme == "file" || scheme == "intent" || scheme == "javascript") return blockedResource()
-                if (scheme == "content") return if (selectedContent.contains(uri.toString())) null else blockedResource()
-                val current = gateway ?: return blockedResource()
-                if (request.isForMainFrame && GatewayPolicy.navigation(uri.toString(), current.url) != GatewayPolicy.Navigation.INTERNAL) return blockedResource()
-                if (scheme == "http" && !GatewayPolicy.sameOrigin(uri.toString(), current.url)) return blockedResource()
-                // Browser cookies are not port-scoped: never send them to another
-                // port/scheme of the Gateway host as an embedded resource.
-                if (scheme == "https" || scheme == "http") {
-                    val host = runCatching { URI(uri.toString()).host?.removeSurrounding("[", "]")?.lowercase() }.getOrNull()
-                    if (host == current.host && !GatewayPolicy.sameOrigin(uri.toString(), current.url)) return blockedResource()
-                }
+            override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
+                // No unmanaged popup sessions or native bridge for remote pages.
                 return null
             }
-            override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) { beginPage(url) }
-            override fun onPageFinished(view: WebView, url: String?) {
-                progress.visibility = View.GONE
-                if (!mainFrameFailed && url != null && gateway?.let { GatewayPolicy.sameOrigin(url, it.url) } == true) {
-                    overlay.visibility = View.GONE
-                    web.visibility = View.VISIBLE
-                    CookieManager.getInstance().flush()
-                }
-            }
-            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                if (request.isForMainFrame) showStatus("无法连接 Gateway", "请检查手机网络与服务器地址，然后重试。（错误 ${error.errorCode}）")
-            }
-            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: WebResourceResponse) {
-                if (request.isForMainFrame) showStatus("服务器返回错误", "Gateway 返回 HTTP ${errorResponse.statusCode}，请检查地址或稍后重试。")
-            }
-            override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
-                handler.cancel()
-                showStatus("证书验证失败", "连接已取消。请修复服务器证书，或使用受信任的 HTTPS 入口；此应用不会忽略证书错误。")
+            override fun onCanGoBack(session: GeckoSession, value: Boolean) { canGoBack = value }
+                        override fun onLoadError(session: GeckoSession, uri: String?, error: WebRequestError): GeckoResult<String>? {
+                showStatus("无法加载 Gateway", "请检查网络、地址和 HTTPS 证书后重试。（错误 ${error.code}）")
+                return null
             }
         }
-        web.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView, newProgress: Int) {
-                progress.progress = newProgress
-                if (!mainFrameFailed) progress.visibility = if (newProgress < 100) View.VISIBLE else View.GONE
+        gecko.progressDelegate = object : GeckoSession.ProgressDelegate {
+            override fun onPageStart(session: GeckoSession, url: String) { beginPage(url) }
+            override fun onPageStop(session: GeckoSession, success: Boolean) {
+                progress.visibility = View.GONE
+                if (!success && !mainFrameFailed) showStatus("页面加载失败", "请检查网络与服务器后重试。")
             }
-            override fun onPermissionRequest(request: PermissionRequest) {
-                request.deny()
-                toast("此连接版暂不提供摄像头或麦克风访问")
+            override fun onProgressChange(session: GeckoSession, value: Int) {
+                progress.progress = value
+                if (!mainFrameFailed) progress.visibility = if (value < 100) View.VISIBLE else View.GONE
             }
-            override fun onGeolocationPermissionsShowPrompt(origin: String?, callback: GeolocationPermissions.Callback) { callback.invoke(origin, false, false) }
-            override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: WebChromeClient.FileChooserParams): Boolean {
-                pendingFile?.onReceiveValue(null)
-                pendingFile = null
-                if (mainFrameFailed || gateway?.let { GatewayPolicy.sameOrigin(view.url.orEmpty(), it.url) } != true || params.mode !in listOf(WebChromeClient.FileChooserParams.MODE_OPEN, WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE)) {
-                    callback.onReceiveValue(null)
-                    return true
-                }
-                val types = params.acceptTypes.flatMap { it.split(',') }.map { it.trim() }
+        }
+        gecko.contentDelegate = object : GeckoSession.ContentDelegate {
+            override fun onCrash(session: GeckoSession) { showStatus("网页进程已退出", "请关闭应用后重新打开，登录数据保留。", false) }
+            override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
+                if (GatewayPolicy.safeExternal(response.uri)) AlertDialog.Builder(this@MainActivity)
+                    .setTitle("在系统浏览器下载？").setMessage("浏览器使用独立登录，可能需要重新登录。")
+                    .setPositiveButton("打开") { _, _ -> openExternal(response.uri) }.setNegativeButton("取消", null).show()
+            }
+        }
+        gecko.permissionDelegate = object : GeckoSession.PermissionDelegate {
+            override fun onContentPermissionRequest(session: GeckoSession, perm: GeckoSession.PermissionDelegate.ContentPermission): GeckoResult<Int> =
+                GeckoResult.fromValue(GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY)
+        }
+        gecko.promptDelegate = object : GeckoSession.PromptDelegate {
+            override fun onFilePrompt(session: GeckoSession, prompt: GeckoSession.PromptDelegate.FilePrompt): GeckoResult<GeckoSession.PromptDelegate.PromptResponse> {
+                cancelFilePrompt()
+                if (mainFrameFailed || prompt.type == GeckoSession.PromptDelegate.FilePrompt.Type.FOLDER) return GeckoResult.fromValue(prompt.dismiss())
+                val types = prompt.mimeTypes.orEmpty().flatMap { it.split(',') }.map { it.trim() }
                     .filter { it.matches(Regex("^[a-zA-Z0-9!#$&^_.+*-]+/[a-zA-Z0-9!#$&^_.+*-]+$")) }.distinct().take(12)
                 val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = if (types.size == 1) types[0] else "*/*"
                     if (types.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, types.toTypedArray())
-                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE)
+                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, prompt.type == GeckoSession.PromptDelegate.FilePrompt.Type.MULTIPLE)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                pendingFile = callback
+                val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                pendingFile = prompt; pendingResult = result
                 try { startActivityForResult(picker, FILE_PICKER) }
-                catch (_: ActivityNotFoundException) { pendingFile = null; callback.onReceiveValue(null); toast("未找到系统文件选择器") }
-                return true
+                catch (_: ActivityNotFoundException) { cancelFilePrompt(); toast("未找到系统文件选择器") }
+                return result
             }
         }
-        web.setDownloadListener { url, _, _, _, _ ->
-            if (GatewayPolicy.safeExternal(url)) {
-                AlertDialog.Builder(this).setTitle("在系统浏览器下载？")
-                    .setMessage("浏览器不会收到本应用的登录凭据，可能需要单独登录。")
-                    .setPositiveButton("打开浏览器") { _, _ -> openExternal(url) }
-                    .setNegativeButton("取消", null).show()
-            } else toast("当前版本不支持此类临时下载链接")
-        }
-        content.addView(web, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        val restored = savedState?.takeIf { it.getString("browserOrigin") == address.origin }?.getBundle("browser")?.let { web.restoreState(it) } != null
-        if (!restored) web.loadUrl(address.url)
-        else { mainFrameFailed = false; overlay.visibility = View.GONE; web.visibility = View.VISIBLE }
+        gecko.open(runtime)
+        web.setSession(gecko)
+        content.addView(web, 0, FrameLayout.LayoutParams(-1, -1))
+        // Cookies/localStorage live in the engine profile, not this activity Bundle.
+        val target = savedState?.getString("pageUrl")?.takeIf { GatewayPolicy.sameOrigin(it, address.url) } ?: address.url
+        gecko.loadUri(target)
     }
-
-    private fun blockedResource() = WebResourceResponse("text/plain", "UTF-8", 403, "Blocked", mapOf("Cache-Control" to "no-store"), ByteArrayInputStream(ByteArray(0)))
 
     private fun retry() {
         val address = gateway ?: return showSettings()
         val target = lastInternalUrl?.takeIf { GatewayPolicy.sameOrigin(it, address.url) } ?: address.url
-        browser?.loadUrl(target)
+        session?.loadUri(target)
     }
 
     private fun openExternal(url: String) {
@@ -343,7 +296,7 @@ class MainActivity : Activity() {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val address = try { GatewayPolicy.normalize(input.text.toString()) } catch (error: IllegalArgumentException) { input.error = error.message; return@setOnClickListener }
                 val apply = applyConnection@ {
-                    if (WebViewProfile.isDifferent(address.origin)) confirmProfileSwitch(address, dialog)
+                    if (GeckoProfile.isDifferent(address.origin)) confirmProfileSwitch(address, dialog)
                     else {
                         if (!preferences.edit().putString("gateway", address.url).commit()) {
                             toast("连接设置保存失败，请重试")
@@ -351,7 +304,7 @@ class MainActivity : Activity() {
                         }
                         dialog.dismiss()
                         if (browser == null) connect(address)
-                        else { gateway = address; subtitle.text = address.host; lastInternalUrl = address.url; browser?.loadUrl(address.url) }
+                        else { gateway = address; subtitle.text = address.host; lastInternalUrl = address.url; session?.loadUri(address.url) }
                     }
                 }
                 if (address.cleartext) AlertDialog.Builder(this).setTitle("连接局域网 HTTP？")
@@ -373,11 +326,10 @@ class MainActivity : Activity() {
                     toast("连接设置保存失败，请重试")
                     return@setPositiveButton
                 }
-                CookieManager.getInstance().flush()
+
                 settings.dismiss()
-                pendingFile?.onReceiveValue(null)
-                pendingFile = null
-                browser?.stopLoading()
+                cancelFilePrompt()
+                session?.stop()
                 finishAndRemoveTask()
                 val self = Process.myPid()
                 Handler(Looper.getMainLooper()).postDelayed({ Process.killProcess(self) }, 200)
@@ -388,27 +340,38 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != FILE_PICKER) return
-        val callback = pendingFile ?: return
-        if (resultCode != RESULT_OK) { pendingFile = null; callback.onReceiveValue(null); return }
+        val prompt = pendingFile ?: return
+        val result = pendingResult ?: return
+        if (resultCode != RESULT_OK) { cancelFilePrompt(); return }
         val candidates = buildList<Uri> {
-            data?.clipData?.let { clip -> for (i in 0 until minOf(clip.itemCount, 10)) clip.getItemAt(i).uri?.let { add(it) } }
+            data?.clipData?.let { clip -> for (i in 0 until minOf(clip.itemCount, 10)) add(clip.getItemAt(i).uri) }
             data?.data?.let { add(it) }
-        }.distinct().take(10)
+        }.distinct().take(if (prompt.type == GeckoSession.PromptDelegate.FilePrompt.Type.SINGLE) 1 else 10)
         documentExecutor.execute {
-            val readable = candidates.filter { uri ->
-                uri.scheme == "content" && uri.authority != null && uri.toString().length < 8192 && runCatching {
-                    contentResolver.openAssetFileDescriptor(uri, "r")?.use { true } ?: false
-                }.getOrDefault(false)
+            val copied = runCatching {
+                val directory = File(cacheDir, "attachments").apply { mkdirs() }
+                candidates.map { uri ->
+                    require(uri.scheme == "content")
+                    val name = contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                        if (it.moveToFirst()) it.getString(0) else null
+                    }?.replace(Regex("[^\\p{L}\\p{N}._-]"), "_")?.take(100) ?: "attachment"
+                    val file = File(directory, "${java.util.UUID.randomUUID()}-$name")
+                    try {
+                        contentResolver.openInputStream(uri)!!.use { input -> file.outputStream().use { output ->
+                            val buffer = ByteArray(65536); var size = 0L
+                            while (true) { val n = input.read(buffer); if (n < 0) break; size += n; require(size <= 25L * 1024 * 1024) { "附件超过 25 MB" }; output.write(buffer, 0, n) }
+                        } }
+                    } catch (error: Exception) { file.delete(); throw error }
+                    Uri.fromFile(file)
+                }
             }
             runOnUiThread {
-                if (pendingFile !== callback) return@runOnUiThread
-                pendingFile = null
-                if (isFinishing || isDestroyed || readable.isEmpty()) callback.onReceiveValue(null)
-                else {
-                    selectedContent.addAll(readable.map(Uri::toString))
-                    browser?.settings?.allowContentAccess = true
-                    callback.onReceiveValue(readable.toTypedArray())
-                }
+                if (pendingFile !== prompt) return@runOnUiThread
+                pendingFile = null; pendingResult = null
+                if (isFinishing || isDestroyed || copied.isFailure || copied.getOrNull().isNullOrEmpty()) {
+                    result.complete(prompt.dismiss()); if (copied.isFailure) toast("无法读取附件，单个文件上限 25 MB")
+                } else runCatching { result.complete(prompt.confirm(this, copied.getOrThrow().toTypedArray())) }
+                    .onFailure { result.completeExceptionally(it) }
             }
         }
     }
@@ -418,34 +381,21 @@ class MainActivity : Activity() {
         if (::root.isInitialized) root.requestApplyInsets()
     }
     override fun onSaveInstanceState(outState: Bundle) {
-        browser?.let { web ->
-            val browserState = Bundle()
-            web.saveState(browserState)
-            outState.putBundle("browser", browserState)
-            outState.putString("browserOrigin", gateway?.origin)
-        }
+        outState.putString("pageUrl", lastInternalUrl)
         super.onSaveInstanceState(outState)
     }
-    override fun onPause() {
-        browser?.onPause()
-        if (browser != null) CookieManager.getInstance().flush()
-        super.onPause()
-    }
-    override fun onResume() { super.onResume(); browser?.onResume() }
-    @Deprecated("Platform back navigation retains WebView history")
+    override fun onPause() { session?.setActive(false); super.onPause() }
+    override fun onResume() { super.onResume(); session?.setActive(true) }
+    @Deprecated("Platform back navigation retains browser history")
     override fun onBackPressed() { navigateBack() }
-    private fun navigateBack() {
-        val web = browser
-        if (web?.canGoBack() == true) web.goBack() else finish()
-    }
+    private fun navigateBack() { if (canGoBack) session?.goBack() else finish() }
     override fun onDestroy() {
-        pendingFile?.onReceiveValue(null)
-        pendingFile = null
-        selectedContent.clear()
-        documentExecutor.shutdownNow()
+        cancelFilePrompt()
+        documentExecutor.shutdown()
         settingsDialog?.dismiss()
-        browser?.let { web -> (web.parent as? ViewGroup)?.removeView(web); web.stopLoading(); web.destroy() }
-        browser = null
+        browser?.releaseSession()
+        session?.close()
+        session = null; browser = null
         super.onDestroy()
     }
     private fun toast(message: String) { runOnUiThread { Toast.makeText(this, message, Toast.LENGTH_LONG).show() } }

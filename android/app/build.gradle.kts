@@ -11,8 +11,9 @@ android {
         applicationId = "dev.openclaw.mobile"
         minSdk = 28
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.1.2"
+        ndk { abiFilters += listOf("arm64-v8a") }
+        versionCode = 4
+        versionName = "0.1.3"
         testInstrumentationRunner = "android.test.InstrumentationTestRunner"
     }
     val signingValues = listOf("ANDROID_RELEASE_KEYSTORE", "ANDROID_RELEASE_STORE_PASSWORD", "ANDROID_RELEASE_KEY_PASSWORD", "ANDROID_RELEASE_KEY_ALIAS").map(System::getenv)
@@ -36,6 +37,7 @@ android {
 }
 
 dependencies {
+    implementation("org.mozilla.geckoview:geckoview:160.0.20261116130455")
     implementation("androidx.core:core:1.15.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

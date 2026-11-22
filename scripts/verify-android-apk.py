@@ -5,7 +5,7 @@ from pathlib import Path
 parser=argparse.ArgumentParser()
 parser.add_argument('apk',type=Path)
 parser.add_argument('--build-tools',type=Path,required=True)
-parser.add_argument('--expected-version',default='0.1.2')
+parser.add_argument('--expected-version',default='0.1.3')
 args=parser.parse_args()
 root=Path(__file__).resolve().parent.parent
 apk=args.apk.resolve()
@@ -31,7 +31,9 @@ with zipfile.ZipFile(apk) as archive:
     assert 'AndroidManifest.xml' in names and 'classes.dex' in names
     assert not any(name.endswith(('.jks','.keystore','.mp4','.webm')) for name in names),'Private keys or desktop media included'
     assert not any('node_modules/' in name for name in names),'Desktop dependencies included'
+    assert 'lib/arm64-v8a/libxul.so' in names,'Bundled Gecko engine missing'
 size=apk.stat().st_size
+assert size <= 100*1024*1024,'APK exceeds the installed 0.1.2 updater download limit' 
 sha=hashlib.file_digest(apk.open('rb'),'sha256').hexdigest()
 print(f'APK verified: {apk.name} | {size} bytes | Android 9+ | release certificate pinned')
 print(f'SHA256 {sha}')

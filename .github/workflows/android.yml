@@ -112,7 +112,7 @@ jobs:
           python -m pip -q install cos-python-sdk-v5
           python scripts/publish-android-cos.py
       - name: Upload signed Android deliverables
-        if: github.event_name != 'pull_request'
+        if: always() && github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: OpenClaw-Android

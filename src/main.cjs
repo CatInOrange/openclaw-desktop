@@ -19,7 +19,7 @@ app.setName('OpenClaw Desktop');
 protocol.registerSchemesAsPrivileged([{scheme: SCHEME, privileges: {standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true}}]);
 const icon = path.join(__dirname, '../assets/icon.png');
 const shellUrl = pathToFileURL(path.join(__dirname, 'shell.html')).href;
-let win, view, tray, quitting = false, retryTimer, loadTimer, saveTimer, retryCount = 0, viewLoaded = false;
+let win, view, tray, quitting = false, retryTimer, loadTimer, observerWaitTimer, saveTimer, retryCount = 0, viewLoaded = false, loadGeneration = 0;
 let config = {}, configPath, stopThemeSync = () => {}, backgroundSync, bootTimer, remoteVisible = false, afterBoot = null;
 let state = {phase: 'setup', address: '', message: '连接你的 OpenClaw Gateway', canBack: false, trayAvailable: false};
 function save() {
@@ -38,7 +38,7 @@ function publish(next) {
     win.webContents.send('desktop:state', state);
   }
 }
-function stopRetry() { clearTimeout(retryTimer); clearTimeout(loadTimer); retryTimer = null; loadTimer = null; }
+function stopRetry() { loadGeneration++; clearTimeout(retryTimer); clearTimeout(loadTimer); clearTimeout(observerWaitTimer); retryTimer = null; loadTimer = null; }
 function placeView() {
   if (!view || !win || win.isDestroyed()) return;
   const [width, height] = win.getContentSize();
@@ -110,10 +110,18 @@ function loadGateway() {
   viewLoaded = false;
   hideView(); publish({phase: 'loading', message: '正在加载 Control UI…', canBack: false});
   // did-fail-load owns errors and retry; suppress the duplicated rejected promise.
-  const loadingView = view;
-  Promise.resolve(stopPetObserver.ready).then(() => {
+  const loadingView = view, generation = loadGeneration;
+  // Monitoring is optional: a stalled CDP setup must never block Control UI.
+  // Prefer the pre-navigation hook, but fail open after one second.
+  let started = false;
+  const start = () => {
+    if (started || generation !== loadGeneration) return;
+    started = true;
+    clearTimeout(observerWaitTimer);
     if (view === loadingView && !quitting && !loadingView.webContents.isDestroyed()) loadingView.webContents.loadURL(config.gateway).catch(() => {});
-  });
+  };
+  observerWaitTimer = setTimeout(start, 1000);
+  Promise.resolve(stopPetObserver.ready).then(start, start);
   loadTimer = setTimeout(() => {
     if (!view || view.webContents.isDestroyed()) return;
     view.webContents.stop(); scheduleRetry('页面加载超时');

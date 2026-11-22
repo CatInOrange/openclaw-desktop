@@ -10,7 +10,7 @@ const os = require('node:os');
 const vm = require('node:vm');
 const mainPath = require.resolve('../src/main.cjs');
 const localRequire = createRequire(mainPath);
-async function fixture(video = {}, platform = 'linux') {
+async function fixture(video = {}, platform = 'linux', observerReady = Promise.resolve()) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-main-'));
   fs.writeFileSync(path.join(directory, 'desktop.json'), JSON.stringify({gateway: 'https://claw.example.com/', video}));
   let window, remote, settings, failWrites = false;
@@ -51,7 +51,7 @@ async function fixture(video = {}, platform = 'linux') {
     if (name === 'electron') return electron;
     if (name === 'node:fs') return fakeFs;
     if (name === './pet-window.cjs') return {createPetWindow: () => ({event() {}, show() {}, stop() {}})};
-    if (name === './pet-observer.cjs') return {watchPetGateway: () => Object.assign(() => {}, {ready: Promise.resolve()})};
+    if (name === './pet-observer.cjs') return {watchPetGateway: () => Object.assign(() => {}, {ready: observerReady})};
     if (name === './theme-sync.cjs') return {watchTheme: () => () => {}};
     if (name === './background.cjs') return {watchBackground: (_wc, getSettings) => {settings = getSettings; return {stop() {}, refresh() {}};}};
     return localRequire(name);
@@ -140,5 +140,24 @@ test('Windows caption overlay shares the full-height workspace without exposing 
     assert.equal(f.hooks.setVideo({glassTransparency: 91}).ok, true);
     assert.equal(f.saved().video.glassTransparency, 91);
     assert.equal(f.settings().glassTransparency, 91);
+  } finally {f.cleanup();}
+});
+
+
+test('a stalled pet observer cannot block loading Control UI', async () => {
+  const f = await fixture({bootEnabled: false}, 'win32', new Promise(() => {}));
+  try {
+    await new Promise(done => setTimeout(done, 1100));
+    assert.equal(f.remote.webContents.getURL(), 'https://claw.example.com/');
+    f.remote.webContents.emit('did-finish-load');
+    assert.equal(f.hooks.getState().phase, 'ready');
+    assert.equal(f.remote.visible, true);
+  } finally {f.cleanup();}
+});
+
+test('a rejected pet observer does not block Control UI', async () => {
+  const f = await fixture({bootEnabled: false}, 'win32', Promise.resolve().then(() => {throw new Error('CDP unavailable');}));
+  try {
+    assert.equal(f.remote.webContents.getURL(), 'https://claw.example.com/');
   } finally {f.cleanup();}
 });

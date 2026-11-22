@@ -98,10 +98,7 @@ class MainActivity : Activity() {
         window.navigationBarColor = Color.TRANSPARENT
         if (Build.VERSION.SDK_INT >= 30) {
             window.setDecorFitsSystemWindows(false)
-            window.insetsController?.setSystemBarsAppearance(
-                if (night()) 0 else WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-            )
+
         } else {
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
@@ -142,6 +139,21 @@ class MainActivity : Activity() {
         overlay.addView(Button(this).apply { text = "连接设置"; setOnClickListener { showSettings() } })
         content.addView(overlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         setContentView(root)
+        // Obtain the controller from the attached view, not PhoneWindow before
+        // setContentView: some Android 12 implementations dereference a null decor.
+        root.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) {
+                view.removeOnAttachStateChangeListener(this)
+                if (Build.VERSION.SDK_INT >= 30) {
+                    view.windowInsetsController?.setSystemBarsAppearance(
+                        if (night()) 0 else WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                    )
+                }
+                view.requestApplyInsets()
+            }
+            override fun onViewDetachedFromWindow(view: View) = Unit
+        })
         root.requestApplyInsets()
     }
 

@@ -87,11 +87,11 @@ jobs:
         run: |
           python scripts/verify-android-apk.py android/app/build/outputs/apk/release/app-release.apk --build-tools "$ANDROID_HOME/build-tools/35.0.0"
           mkdir -p dist/android
-          cp android/app/build/outputs/apk/release/app-release.apk dist/android/OpenClaw-Android-0.1.1.apk
+          cp android/app/build/outputs/apk/release/app-release.apk dist/android/OpenClaw-Android-0.1.2.apk
           cp shared/android-signing-certificate.sha256 dist/android/SIGNING-CERT-SHA256.txt
           cp docs/ANDROID.md dist/android/ANDROID.md
           cd dist/android
-          sha256sum OpenClaw-Android-0.1.1.apk > SHA256SUMS
+          sha256sum OpenClaw-Android-0.1.2.apk > SHA256SUMS
       - name: Upload signed Android deliverables
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4

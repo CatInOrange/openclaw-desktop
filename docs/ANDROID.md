@@ -1,11 +1,11 @@
-# OpenClaw Android 0.1.1 — 连接版
+# OpenClaw Android 0.1.2 — 连接版
 
 这是独立 Android 原生壳，使用系统 WebView 加载现有 Gateway Control UI。它不是 Electron APK，也不包含 Windows 的 Node 运行时、视频壁纸或桌宠大素材。
 
 ## 安装与连接
 
 - Android 9（API28）及以上，设备需要可用且较新的系统 WebView。
-- 安装 `OpenClaw-Android-0.1.1.apk`，按系统要求允许此来源安装。
+- 安装 `OpenClaw-Android-0.1.2.apk`，按系统要求允许此来源安装。
 - 输入手机能访问的 Gateway 地址。手机的 `127.0.0.1` 是手机本身，不是电脑；请使用手机可达的 LAN/VPN/HTTPS 地址。
 - 优先使用有效证书的 HTTPS。HTTP 可以由用户明确配置，但 WebCrypto/设备身份等能力受安全上下文限制，不能保证在明文地址下完成认证。
 - 登录、设备配对和模型/会话功能仍由原版 Control UI 提供，不修改 Gateway，不把 Token 放入入口地址。
@@ -44,3 +44,7 @@
 6. 切换不同 origin 时遵循提示重新打开，不应串用登录；切回原 origin 应恢复其私有空间。
 
 非 GUI 编译、JVM测试、lint和APK检查不等同于上述真机验收。首次 APK 重点证明聊天连接闭环，再逐步接入经过独立验证的共享音乐业务。
+
+## 0.1.2 启动修复
+
+根据 HUAWEI PLA-AL10 / Android 12 的异常堆栈，将系统栏外观设置延迟至根视图挂载后，避免提前调用 PhoneWindow.getInsetsController。覆盖安装后若仍进入旧诊断页，点击「清除记录并重试」。真机启动和界面仍需用户验收。

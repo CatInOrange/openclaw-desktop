@@ -336,6 +336,7 @@ class MainActivity : Activity() {
         }
         body.addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60)))
         body.addView(text("请勿把 Token 放在地址中。登录与配对在 Control UI 内进行。不同服务器使用独立登录空间；切换服务器需退出后重新打开，旧登录保留。", 12f).apply { alpha = 0.75f })
+        body.addView(Button(this).apply { text = "检查应用更新 · ${BuildConfig.VERSION_NAME}"; setOnClickListener { startActivity(Intent(this@MainActivity, UpdateActivity::class.java)) } })
         val dialog = AlertDialog.Builder(this).setTitle("连接设置").setView(body).setPositiveButton("连接", null).setNegativeButton("取消", null).create()
         settingsDialog = dialog
         dialog.setOnShowListener {

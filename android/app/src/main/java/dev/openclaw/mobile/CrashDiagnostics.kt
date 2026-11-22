@@ -59,6 +59,7 @@ class DiagnosticsActivity : Activity() {
                 startActivity(Intent(this@DiagnosticsActivity, MainActivity::class.java)); finish()
             }
         })
+        body.addView(Button(this).apply { text = "检查应用更新"; setOnClickListener { startActivity(Intent(this@DiagnosticsActivity, UpdateActivity::class.java)) } })
         body.addView(ScrollView(this).apply { addView(TextView(this@DiagnosticsActivity).apply { text = report; textSize = 12f; setTextIsSelectable(true) }) }, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(body)
     }

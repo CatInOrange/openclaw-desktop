@@ -2,6 +2,7 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');const path=require('node:path');const os=require('node:os');const {createHash}=require('node:crypto');
 const {compare,selectRelease,checksum,download,check,API}=require('../src/update-core.cjs');
+const helperSource=require.resolve('../src/portable-update-helper.cs');
 const {writableTarget}=require('../src/portable-update.cjs');
 function release(tag='v0.4.2',pre=true){const name=`OpenClaw-Desktop-${tag.slice(1)}-win-x64.exe`;return {tag_name:tag,prerelease:pre,assets:[name,'SHA256SUMS'].map(name=>({name,state:'uploaded',size:4,browser_download_url:`https://github.com/CatInOrange/openclaw-desktop/releases/download/${tag}/${name}`}))};}
 test('release selection respects semantic ordering, channel, incomplete and draft releases',()=>{
@@ -43,12 +44,12 @@ test('helper launch uses argument arrays and waits for its readiness receipt bef
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),"oc helper's [space] "));
  try{
   const exe=path.join(dir,"client's app.exe");await fs.writeFile(exe,'old');let received;
-  await launchReplacement({target:exe,file:path.join(dir,'download.exe'),hash:'ab'.repeat(32),directory:dir,result:path.join(dir,'result.json'),version:'0.4.2'},(_command,args,options)=>{
+  await launchReplacement({helperSource,target:exe,file:path.join(dir,'download.exe'),hash:'ab'.repeat(32),directory:dir,result:path.join(dir,'result.json'),version:'0.4.2'},(_command,args,options)=>{
    received={args,options};const child=new EventEmitter();child.unref=()=>{};
    void fs.readFile(args.at(-1),'utf8').then(JSON.parse).then(p=>fs.writeFile(p.ready,p.token));
    return child;
   });
-  assert.equal(received.options.detached,false);assert.equal(received.options.shell,undefined);assert.equal(received.args.at(-1),path.join(dir,'payload.json'));
+  assert.equal(received.options.detached,true);assert.equal(received.options.shell,undefined);assert.equal(received.args.at(-1),path.join(dir,'payload.json'));
   const payload=JSON.parse(await fs.readFile(path.join(dir,'payload.json'),'utf8'));assert.equal(await fs.readFile(payload.commit,'utf8'),payload.token);
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
@@ -58,7 +59,7 @@ test('an early helper exit cancels handoff, records diagnostics, and never commi
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'oc-helper-fail-'));
  try{
   const target=path.join(dir,'client.exe');await fs.writeFile(target,'old');const result=path.join(dir,'result.json');
-  await assert.rejects(launchReplacement({target,file:path.join(dir,'download.exe'),hash:'ab'.repeat(32),directory:dir,result,version:'test'},()=>{const child=new EventEmitter();child.unref=()=>{};setImmediate(()=>child.emit('exit',1));return child;}),/提前退出/);
+  await assert.rejects(launchReplacement({helperSource,target,file:path.join(dir,'download.exe'),hash:'ab'.repeat(32),directory:dir,result,version:'test'},()=>{const child=new EventEmitter();child.unref=()=>{};setImmediate(()=>child.emit('exit',1));return child;}),/提前退出/);
   const payload=JSON.parse(await fs.readFile(path.join(dir,'payload.json'),'utf8'));await assert.rejects(fs.access(payload.commit));assert.equal(await fs.readFile(payload.cancel,'utf8'),payload.token);assert.equal(JSON.parse(await fs.readFile(result,'utf8')).phase,'failed');assert.equal(await fs.readFile(target,'utf8'),'old');
  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
@@ -68,7 +69,7 @@ test('a wrong receipt cannot commit an update and timeout leaves the client unto
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'oc-helper-timeout-'));
  try{
   const target=path.join(dir,'client.exe');await fs.writeFile(target,'old');
-  await assert.rejects(launchReplacement({target,file:path.join(dir,'download.exe'),hash:'ab'.repeat(32),directory:dir,result:path.join(dir,'result.json'),version:'test',timeoutMs:100},(_command,args)=>{
+  await assert.rejects(launchReplacement({helperSource,target,file:path.join(dir,'download.exe'),hash:'ab'.repeat(32),directory:dir,result:path.join(dir,'result.json'),version:'test',timeoutMs:100},(_command,args)=>{
    const c=new EventEmitter();c.unref=()=>{};void fs.readFile(args.at(-1),'utf8').then(JSON.parse).then(p=>fs.writeFile(p.ready,'wrong-token'));return c;
   }),/客户端未退出/);
   await assert.rejects(fs.access(path.join(dir,'commit')));assert.equal(await fs.readFile(target,'utf8'),'old');

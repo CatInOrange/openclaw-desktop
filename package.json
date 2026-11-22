@@ -50,7 +50,8 @@
     },
     "asarUnpack": [
       "assets/video/*.mp4",
-      "assets/pet/*.webm"
+      "assets/pet/*.webm",
+      "src/portable-update-helper.exe"
     ]
   }
 }

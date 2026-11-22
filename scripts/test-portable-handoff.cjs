@@ -1,5 +1,5 @@
 'use strict';
-// Actual Node -> hidden Windows PowerShell -> receipt/commit -> EXE replace.
+// Actual Node -> independent native updater -> receipt/commit -> EXE replace.
 // Only disposable system console utilities are launched; no Electron GUI.
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
 const assert=require('node:assert/strict'),{createHash}=require('node:crypto'),{spawn}=require('node:child_process');
@@ -10,11 +10,13 @@ async function main(){
  if(process.argv[2]==='--caller'){await launchReplacement(JSON.parse(await fs.readFile(process.argv[3],'utf8')));return;}
  const root=await fs.mkdtemp(path.join(os.tmpdir(),"openclaw 启动 [test]'s "));
  try{
-  for(const corrupt of [false,true]){
-   const dir=path.join(root,corrupt?'hash failure':'success');await fs.mkdir(dir);
+  for(const scenario of ['success','hash failure','launch failure']){
+   const corrupt=scenario==='hash failure';
+   const dir=path.join(root,scenario);await fs.mkdir(dir);
    const target=path.join(dir,'client.exe'),file=path.join(dir,'download.exe'),result=path.join(dir,'result.json');
    await fs.copyFile(path.join(process.env.SystemRoot,'System32','where.exe'),target);
    await fs.copyFile(path.join(process.env.SystemRoot,'System32','whoami.exe'),file);
+   if(scenario==='launch failure')await fs.writeFile(file,'not an executable');
    const oldHash=hash(await fs.readFile(target)),newHash=hash(await fs.readFile(file));let child;
    await launchReplacement({target,file,hash:corrupt?'0'.repeat(64):newHash,directory:dir,result,version:'test',pid:2147483647},(...args)=>{child=spawn(...args);return child;});
    await new Promise((resolve,reject)=>{
@@ -22,9 +24,9 @@ async function main(){
     child.once('exit',()=>{clearTimeout(timer);resolve();});child.once('error',e=>{clearTimeout(timer);reject(e);});
    });
    const outcome=JSON.parse((await fs.readFile(result,'utf8')).replace(/^\uFEFF/,''));
-   assert.equal(outcome.phase,corrupt?'failed':'installed');
-   assert.equal(hash(await fs.readFile(target)),corrupt?oldHash:newHash);
-   if(!corrupt)assert.equal(hash(await fs.readFile(target+'.previous.exe')),oldHash);
+   assert.equal(outcome.phase,scenario==='success'?'installed':'failed');
+   assert.equal(hash(await fs.readFile(target)),scenario==='success'?newHash:oldHash);
+   if(scenario==='success')assert.equal(hash(await fs.readFile(target+'.previous.exe')),oldHash);
   }
   // Production order: caller really exits, then helper verifies and replaces.
   for(const runtime of ['node','electron']){
@@ -40,9 +42,9 @@ async function main(){
   while(Date.now()<deadline){try{outcome=JSON.parse((await fs.readFile(result,'utf8')).replace(/^\uFEFF/,''));if(outcome.phase==='failed')throw new Error(outcome.message);await fs.access(file);}catch(e){if(outcome?.phase==='installed'&&e.code==='ENOENT')break;if(e.code!=='ENOENT')throw e;}await new Promise(r=>setTimeout(r,100));}
   assert.equal(outcome?.phase,'installed');assert.equal(hash(await fs.readFile(target)),newHash);assert.equal(hash(await fs.readFile(target+'.previous.exe')),oldHash);
   }
-  console.log('Actual hidden PowerShell handoff passed, including real caller exit before replacement.');
+  console.log('Independent updater handoff passed, including real caller exit before replacement.');
  }catch(error){
-  for(const name of ['success','hash failure','real parent exit node','real parent exit electron']){try{console.error('HELPER OUTPUT '+name+':\n'+await fs.readFile(path.join(root,name,'result.json.helper.log'),'utf8'));}catch{}}
+  for(const name of ['success','hash failure','launch failure','real parent exit node','real parent exit electron']){try{console.error('HELPER OUTPUT '+name+':\n'+await fs.readFile(path.join(root,name,'result.json.helper.log'),'utf8'));}catch{}}
   throw error;
  }finally{await fs.rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 }

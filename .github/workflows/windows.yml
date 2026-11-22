@@ -24,6 +24,9 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
+      - name: Compile independent update helper (no GUI)
+        shell: powershell
+        run: ./scripts/build-update-helper.ps1
       - name: Non-GUI checks
         shell: pwsh
         run: |
@@ -37,12 +40,6 @@ jobs:
           if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
           npm test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Verify portable replacement and rollback (non-GUI)
-        shell: powershell
-        run: ./scripts/test-portable-update.ps1
-      - name: Diagnose PowerShell bootstrap (non-GUI)
-        shell: pwsh
-        run: node scripts/probe-powershell-launch.cjs
       - name: Verify actual updater handoff and parent exit (non-GUI)
         shell: pwsh
         run: node scripts/test-portable-handoff.cjs

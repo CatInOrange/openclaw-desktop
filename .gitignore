@@ -1,3 +1,5 @@
 node_modules/
 dist/
 test-output/
+
+src/portable-update-helper.exe

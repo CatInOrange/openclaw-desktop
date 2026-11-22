@@ -33,7 +33,7 @@ with zipfile.ZipFile(apk) as archive:
     assert not any('node_modules/' in name for name in names),'Desktop dependencies included'
     assert 'lib/arm64-v8a/libxul.so' in names,'Bundled Gecko engine missing'
 size=apk.stat().st_size
-assert size <= 100*1024*1024,'APK exceeds the installed 0.1.2 updater download limit'
+assert size <= 100*1024*1024,f'APK {size} bytes exceeds the installed 0.1.2 updater download limit'
 sha=hashlib.file_digest(apk.open('rb'),'sha256').hexdigest()
 print(f'APK verified: {apk.name} | {size} bytes | Android 9+ | release certificate pinned')
 print(f'SHA256 {sha}')

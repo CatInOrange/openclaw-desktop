@@ -24,6 +24,9 @@ android {
             keyAlias = signingValues[3]
         }
     }
+    // Compress bundled native engine so the installed 0.1.2 updater can fetch it.
+    // Android extracts these libraries into private install storage.
+    packaging { jniLibs.useLegacyPackaging = true }
     buildTypes {
         release {
             isMinifyEnabled = false

@@ -27,6 +27,7 @@ def main():
     # Versioned artifacts first; only expose a new manifest after remote size verification.
     stage = "upload"
     client.upload_file(Bucket=bucket, Key=key, LocalFilePath=str(apk), ACL='public-read', PartSize=10, MAXThread=4)
+    client.put_object_acl(Bucket=bucket, Key=key, ACL='public-read')
     remote = client.head_object(Bucket=bucket, Key=key)
     assert int(remote['Content-Length']) == apk.stat().st_size
     manifest = {'schemaVersion': 1, 'version': version, 'apkUrl': f'{parsed.scheme}://{parsed.netloc}/{key}', 'size': apk.stat().st_size, 'sha256': digest}
@@ -40,7 +41,7 @@ def main():
             with urllib.request.urlopen(endpoint, timeout=30) as response:
                 assert json.load(response) == manifest
             stage = "anonymous-apk-read"
-            request = urllib.request.Request(manifest['apkUrl'], headers={'Range': 'bytes=0-31'})
+            request = urllib.request.Request(manifest['apkUrl'], headers={'Range': 'bytes=0-31', 'User-Agent': 'OpenClaw-Android/0.1.4', 'Cache-Control': 'no-cache'})
             with urllib.request.urlopen(request, timeout=30) as response:
                 assert response.read(4) == b'PK\x03\x04'
             break
@@ -53,7 +54,14 @@ if __name__ == '__main__':
     try:
         main()
     except Exception as error:
+        detail = ""
+        if hasattr(error, 'read'):
+            try:
+                import xml.etree.ElementTree as ET
+                value = ET.fromstring(error.read(8192)).findtext('Code', '')
+                if re.fullmatch(r'[A-Za-z0-9_]{1,80}', value): detail = value
+            except Exception: pass
         code = getattr(error, 'code', None)
         safe_code = str(code) if isinstance(code, int) else "n/a"
-        print(f'COS publication failed at {stage}: {type(error).__name__}, HTTP {safe_code}; configuration suppressed.', file=sys.stderr)
+        print(f'COS publication failed at {stage}: {type(error).__name__}, HTTP {safe_code}, code {detail}; configuration suppressed.', file=sys.stderr)
         sys.exit(1)

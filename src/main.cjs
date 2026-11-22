@@ -1,6 +1,7 @@
 'use strict';
 const {app, BrowserWindow, WebContentsView, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog} = require('electron');
 const {DEFAULT_THEME, normalizeTheme} = require('./theme.cjs');
+const {watchTheme} = require('./theme-sync.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
@@ -10,7 +11,7 @@ app.setName('OpenClaw Desktop');
 const icon = path.join(__dirname, '../assets/icon.png');
 const shellUrl = pathToFileURL(path.join(__dirname, 'shell.html')).href;
 let win, view, tray, quitting = false, retryTimer, loadTimer, saveTimer, retryCount = 0, viewLoaded = false;
-let config = {}, configPath;
+let config = {}, configPath, stopThemeSync = () => {};
 let state = {phase: 'setup', address: '', message: '连接你的 OpenClaw Gateway', canBack: false, trayAvailable: false};
 function save() {
   try {
@@ -56,12 +57,12 @@ function loadGateway() {
   }, 20000);
 }
 function makeRemote() {
+  stopThemeSync();
   if (view) {
     win.contentView.removeChildView(view);
     if (!view.webContents.isDestroyed()) view.webContents.close();
   }
   const remote = new WebContentsView({webPreferences: {
-    preload: path.join(__dirname, 'remote-theme.cjs'),
     partition: 'persist:control-ui', nodeIntegration: false, contextIsolation: true,
     sandbox: true, webSecurity: true, allowRunningInsecureContent: false,
   }});
@@ -69,6 +70,21 @@ function makeRemote() {
   remote.setBackgroundColor((state.theme || DEFAULT_THEME).background);
   win.contentView.addChildView(remote); placeView(); hideView();
   const wc = remote.webContents;
+  let themeErrorLogged = false;
+  stopThemeSync = watchTheme(wc, value => {
+    if (view !== remote || quitting || !sameOrigin(wc.getURL(), config.gateway)) return;
+    const theme = normalizeTheme(value);
+    if (!theme || JSON.stringify(theme) === JSON.stringify(state.theme)) return;
+    config.theme = theme; save();
+    win.setBackgroundColor(theme.background);
+    remote.setBackgroundColor(theme.background);
+    publish({theme});
+  }, error => {
+    if (themeErrorLogged) return;
+    themeErrorLogged = true;
+    // Local diagnostic only: no page content, tokens or addresses.
+    try { fs.appendFileSync(path.join(app.getPath('userData'), 'theme-sync.log'), `${new Date().toISOString()} v${app.getVersion()} theme read failed: ${error.name}\n`); } catch {}
+  });
   let httpFailure = 0;
   wc.on('did-start-navigation', (_event, _url, inPlace, isMainFrame) => {if (isMainFrame && !inPlace) httpFailure = 0;});
   wc.on('did-navigate', (_event, _url, statusCode) => {if (statusCode >= 400) httpFailure = statusCode;});
@@ -151,16 +167,6 @@ else {
     });
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
-    ipcMain.on('desktop:theme', (event, value) => {
-      if (!view || event.sender !== view.webContents || event.senderFrame !== view.webContents.mainFrame
-        || !sameOrigin(event.senderFrame.url, config.gateway)) return;
-      const theme = normalizeTheme(value);
-      if (!theme || JSON.stringify(theme) === JSON.stringify(state.theme)) return;
-      config.theme = theme; save();
-      win.setBackgroundColor(theme.background);
-      view.setBackgroundColor(theme.background);
-      publish({theme});
-    });
     // No native bridge is exposed to the remote Control UI; only this local shell can invoke IPC.
     for (const [name, handler] of Object.entries({
       initial: () => ({...state, maximized: win.isMaximized(), fullscreen: win.isFullScreen()}),
@@ -218,5 +224,5 @@ else {
   }).catch(error => {dialog.showErrorBox('OpenClaw Desktop 启动失败', error.message); app.exit(1);});
 }
 app.on('activate', showWindow);
-app.on('before-quit', () => {quitting = true; stopRetry(); clearTimeout(saveTimer); if (configPath) saveWindow(); if (view && !view.webContents.isDestroyed()) view.webContents.close();});
+app.on('before-quit', () => {quitting = true; stopThemeSync(); stopRetry(); clearTimeout(saveTimer); if (configPath) saveWindow(); if (view && !view.webContents.isDestroyed()) view.webContents.close();});
 app.on('window-all-closed', () => {if (quitting || !tray) app.quit();});

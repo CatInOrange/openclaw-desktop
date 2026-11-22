@@ -30,7 +30,7 @@
 
 所有编译、打包和交付检查均在 GitHub Actions 执行，不在用户 Linux 主机运行 Gradle/Android 构建，也不运行模拟器或虚拟显示。流程位于 `.github/workflows/android.yml`。
 
-工具链固定 JDK17、Gradle8.11.1（wrapper SHA256固定）、AGP8.9.2、Kotlin2.1.20、compile/target SDK35。该 APK 用于个人侧载验证，不代表已符合应用商店上架要求。
+工具链固定 JDK17、Gradle9.3.1（wrapper SHA256固定）、AGP9.1.1（内置 Kotlin）、compile SDK37 / target SDK35。该 APK 用于个人侧载验证，不代表已符合应用商店上架要求。
 
 正式发布使用持久私有签名，私钥及密码不在代码、APK、构建产物或聊天里。公开证书指纹在 `shared/android-signing-certificate.sha256`，CI 检查 APK 签名、包名、版本、最低 API、非调试标记、权限与备份限制。后续更新必须延续相同包名/签名并增加 versionCode。
 

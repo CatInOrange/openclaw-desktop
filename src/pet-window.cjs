@@ -6,9 +6,11 @@ function createPetWindow({BrowserWindow,ipcMain,screen,config,save,openSession})
  const url=pathToFileURL(path.join(__dirname,'pet.html')).href;
  const state=createPetState();let win,expanded=false,timer,stopped=false,notice='';
  const pref=config.pet&&typeof config.pet==='object'?config.pet:{};config.pet=pref;
- let size=Math.max(160,Math.min(300,Number(pref.size)||190));
- function dimensions(){return expanded?{width:360,height:size+330}:{width:size,height:size+20};}
- function persist(){if(!win||win.isDestroyed())return;const b=win.getBounds();Object.assign(pref,{x:b.x+b.width-size,y:b.y+b.height-size-20,size});save();}
+ // Migrate only the previous default; preserve explicitly resized pets.
+ if(!pref.layoutVersion){if(!pref.size||pref.size===190)pref.size=462;pref.layoutVersion=2;}
+ let size=Math.max(160,Math.min(720,Number(pref.size)||462));
+ function dimensions(){return expanded?{width:360,height:Math.round(size*9/16)+330}:{width:size,height:Math.round(size*9/16)};}
+ function persist(){if(!win||win.isDestroyed())return;const b=win.getBounds();Object.assign(pref,{x:b.x+b.width-size,y:b.y+b.height-Math.round(size*9/16),size});save();}
  function publish(){if(win&&!win.isDestroyed())win.webContents.send('pet:state',{...summarizePetState(state),size,top:pref.top!==false,expanded,notice});}
  function ensure(){
   if(win&&!win.isDestroyed())return;
@@ -28,7 +30,7 @@ function createPetWindow({BrowserWindow,ipcMain,screen,config,save,openSession})
   else if(name==='hit'&&typeof value==='boolean')win.setIgnoreMouseEvents(!value,{forward:true});
   else if(name==='expand'){expanded=!!value;win.setIgnoreMouseEvents(false);resize();publish();}
   else if(name==='move'&&value&&Number.isFinite(value.x)&&Number.isFinite(value.y)){const b=win.getBounds();const target={...b,x:b.x+Math.max(-200,Math.min(200,Math.round(value.x))),y:b.y+Math.max(-200,Math.min(200,Math.round(value.y)))};const area=screen.getDisplayMatching(target).workArea;win.setPosition(Math.max(area.x,Math.min(target.x,area.x+area.width-b.width)),Math.max(area.y,Math.min(target.y,area.y+area.height-b.height)));}
-  else if(name==='smaller'||name==='bigger'){size=Math.max(160,Math.min(300,size+(name==='bigger'?20:-20)));resize();persist();publish();}
+  else if(name==='smaller'||name==='bigger'){size=Math.max(160,Math.min(720,size+(name==='bigger'?20:-20)));resize();persist();publish();}
   else if(name==='top'){pref.top=!!value;win.setAlwaysOnTop(pref.top);save();publish();}
   else if(name==='hide'){pref.enabled=false;win.hide();save();}
   else if(name==='open'&&typeof value==='string'&&summarizePetState(state).sessions.some(s=>(s.sessionKey||s.key)===value))openSession(value);

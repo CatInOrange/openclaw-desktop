@@ -27,7 +27,7 @@ test('pet IPC refuses other senders, child frames and arbitrary page URLs',async
  assert.deepEqual(h.win.openHandler(),{action:'deny'});h.pet.stop();
 });
 test('pet settings synchronize size and top; hiding and showing persist independently',async()=>{
- const h=harness({pet:{size:190,top:false,enabled:false}});await Promise.resolve();
+ const h=harness({pet:{size:190,layoutVersion:2,top:false,enabled:false}});await Promise.resolve();
  assert.equal(h.win.visible,false);h.command('initial');let display=h.win.sent.at(-1)[1];assert.equal(display.top,false);assert.equal(display.size,190);
  h.command('bigger');assert.equal(h.config.pet.size,210);assert.equal(h.win.getBounds().width,210);assert.equal(h.win.sent.at(-1)[1].size,210);
  h.command('top',true);assert.equal(h.win.top,true);assert.equal(h.win.sent.at(-1)[1].top,true);
@@ -36,11 +36,13 @@ test('pet settings synchronize size and top; hiding and showing persist independ
 });
 test('restored and expanded bounds remain in work area; cleanup removes IPC and destroys window',async()=>{
  const h=harness({pet:{x:9000,y:-100,size:1000}});await Promise.resolve();
- const inside=()=>{const b=h.win.getBounds();assert.ok(b.x>=0&&b.y>=0&&b.x+b.width<=1000&&b.y+b.height<=800);};inside();assert.equal(h.win.getBounds().width,300);
- h.command('expand',true);inside();assert.equal(h.win.getBounds().height,630);assert.equal(h.win.sent.at(-1)[1].expanded,true);
+ const inside=()=>{const b=h.win.getBounds();assert.ok(b.x>=0&&b.y>=0&&b.x+b.width<=1000&&b.y+b.height<=800);};inside();assert.equal(h.win.getBounds().width,720);
+ h.command('expand',true);inside();assert.equal(h.win.getBounds().height,735);assert.equal(h.win.sent.at(-1)[1].expanded,true);
  h.command('expand',false);inside();h.pet.stop();assert.equal(h.handlers.size,0);assert.equal(h.win.dead,true);
 });
 test('session navigation only accepts admitted session keys',async()=>{
  const h=harness();await Promise.resolve();h.command('open','https://evil.example');assert.deepEqual(h.opened,[]);
  h.pet.event({type:'connection',connected:true});h.pet.event({type:'snapshot',sessions:[{key:'agent:a:main',agentId:'a',hasActiveRun:true}],complete:true});h.command('open','agent:a:main');assert.deepEqual(h.opened,['agent:a:main']);h.pet.stop();
 });
+
+test('old default migrates to the upstream 462 by 260 stage',()=>{const h=harness({pet:{size:190}});assert.equal(h.win.opts.width,462);assert.equal(h.win.opts.height,260);h.pet.stop();});

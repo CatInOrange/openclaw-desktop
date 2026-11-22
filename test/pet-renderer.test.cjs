@@ -20,8 +20,16 @@ test('pet renderer initializes with the immutable preload bridge and plays idle 
  receive({action:'offline',connected:false,complete:false,sessions:[]});
  assert.equal(get('video').src,'../assets/pet/idle.webm');
  assert.equal(plays,1);
- assert.equal(get('#badge').textContent,'连接中断');
+ assert.equal(get('#connection').textContent,'连接中断');
  receive({action:'working',connected:true,complete:true,activeAgents:2,sessions:[]});
  assert.equal(get('video').src,'../assets/pet/working.webm');
- assert.equal(get('#badge').textContent,'2 个 Agent 工作中');
+ assert.equal(get('#connection').textContent,'2 个 Agent 工作中');
+ receive({action:'idle',connected:true,complete:true,sessions:[]});
+ get('video').onended();
+ assert.match(get('video').src,/idle-(cube|juggle|swing)\.webm$/);
+ const idleSource=get('video').src;
+ receive({action:'idle',connected:true,complete:true,sessions:[]});
+ assert.equal(get('video').src,idleSource);
+ receive({action:'working',connected:true,complete:true,sessions:[]});
+ assert.equal(get('video').src,'../assets/pet/working.webm');
 });

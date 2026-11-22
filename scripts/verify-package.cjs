@@ -21,7 +21,7 @@ for (const [file, hash] of [['boot.mp4', 'e95b45d08d6bdbb0b42f97dc3bcb3891debd27
 }
 console.log(`v${expectedVersion}: packaged scripts, styles, licenses and both video checksums verified (non-GUI)`);
 
-for (const name of ['idle','thinking','working','result','waiting','success','error']) {
+for (const name of ['idle','thinking','working','result','waiting','success','error','idle-cube','idle-juggle','idle-swing']) {
  const relative = `assets/pet/${name}.webm`;
  assert.equal(statFile(archive, path.normalize(relative)).unpacked, true);
  const data = fs.readFileSync(path.join(resources, 'app.asar.unpacked', relative));

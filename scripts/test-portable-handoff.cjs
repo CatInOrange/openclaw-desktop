@@ -26,6 +26,9 @@ async function main(){
    if(!corrupt)assert.equal(hash(await fs.readFile(target+'.previous.exe')),oldHash);
   }
   console.log('Actual detached PowerShell handoff passed: bootstrap, commit, replace, revalidation failure and preservation.');
+ }catch(error){
+  for(const name of ['success','hash failure']){try{console.error('HELPER OUTPUT '+name+':\n'+await fs.readFile(path.join(root,name,'result.json.helper.log'),'utf8'));}catch{}}
+  throw error;
  }finally{await fs.rm(root,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

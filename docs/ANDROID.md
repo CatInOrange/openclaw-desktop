@@ -73,3 +73,13 @@ GeckoView 是未修改的 Mozilla 官方预编译组件，按 MPL-2.0 等上游�
 真实更新地址和 COS 配置仅放 GitHub Secrets，不提交源码、Release 说明或日志。客户端下载时仍可观察地址。COS 默认域名不直接分发 APK，因此使用与 AliceChat 一致的 ZIP 封装；首次从旧版迁移需下载 ZIP、解压并手动覆盖安装一次，之后在应用内检查更新。
 
 发布：在分支通过检查后，手动运行 Android workflow（publish=true）。CI 上传版本目录后最后替换 latest.json；普通 push/PR 不发布。清单禁用缓存，历史安装包使用版本路径；COS 对象独立于 AliceChat。所需 Secrets：ANDROID_UPDATE_MANIFEST_URL、COS_BUCKET、COS_REGION、COS_SECRET_ID、COS_SECRET_KEY，以及既有 Android 签名配置。
+
+## 0.1.5 视频与外观
+
+复用桌面版同源、同许可的视频：约8秒有声开机动画、静音循环动态背景。
+设置 → 视频与外观：动画、声音、背景独立开关，背景强度和毛玻璃透明度即时保存。
+开机动画每次进程启动仅播一次，不因刷新、重连、切后台重播；无跳过按钮，失败自动回退。
+后台暂停媒体；Control UI 与动画并行加载。背景只在当前 Gateway 顶层页面启用。
+使用 Gecko 内置隔离扩展，仅向原生读取白名单外观配置，不向网页开放原生操作桥，不修改服务端 CSP。
+
+真机验收：从0.1.4检查更新并覆盖安装；确认开屏声画、竖/横屏背景、浅深色可读性、设置持久化、后台静音和恢复、刷新不重播、登录/附件不受影响。GUI及实际解码需用户手机验证。

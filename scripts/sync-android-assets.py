@@ -12,3 +12,18 @@ with Image.open(source) as icon:
         folder.mkdir(parents=True, exist_ok=True)
         icon.resize((size,size), Image.Resampling.LANCZOS).save(folder / 'ic_launcher.png')
 print('Android launcher icons generated from assets/icon.png (5 densities).')
+
+# Use the same licensed source clips and background renderer on both clients.
+import shutil
+video = root / 'assets/video'
+raw = resources / 'raw'
+raw.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(video / 'boot.mp4', raw / 'boot.mp4')
+extension = root / 'android/app/src/main/assets/appearance'
+for name in ['background.mp4', 'NOTICE.md', 'LICENSE.dsh-video-skin']:
+    shutil.copyfile(video / name, extension / name)
+shutil.copyfile(root / 'src/background.css', extension / 'background.css')
+core = (root / 'src/background.cjs').read_text()
+core = core[core.index('function applyBackground('):core.index('function watchBackground(')]
+(extension / 'background-core.js').write_text("'use strict';\n" + core)
+print('Shared boot/background clips, license and isolated background renderer copied.')

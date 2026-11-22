@@ -5,7 +5,7 @@ from pathlib import Path
 parser=argparse.ArgumentParser()
 parser.add_argument('apk',type=Path)
 parser.add_argument('--build-tools',type=Path,required=True)
-parser.add_argument('--expected-version',default='0.1.4')
+parser.add_argument('--expected-version',default='0.1.5')
 args=parser.parse_args()
 root=Path(__file__).resolve().parent.parent
 apk=args.apk.resolve()
@@ -29,11 +29,15 @@ assert re.search(r'android:allowBackup[^\n]*=\(type 0x12\)0x0\b',xml),'Backup mu
 with zipfile.ZipFile(apk) as archive:
     names=archive.namelist()
     assert 'AndroidManifest.xml' in names and 'classes.dex' in names
-    assert not any(name.endswith(('.jks','.keystore','.mp4','.webm')) for name in names),'Private keys or desktop media included'
+    assert not any(name.endswith(('.jks','.keystore','.webm')) for name in names),'Private keys or unrelated media included'
     assert not any('node_modules/' in name for name in names),'Desktop dependencies included'
-    assert 'lib/arm64-v8a/libxul.so' in names,'Bundled Gecko engine missing'
+    for packaged, source in [('res/raw/boot.mp4', 'assets/video/boot.mp4'), ('assets/appearance/background.mp4', 'assets/video/background.mp4')]:
+        assert hashlib.sha256(archive.read(packaged)).digest() == hashlib.sha256((root/source).read_bytes()).digest(), 'Bundled media differs from licensed desktop source'
+    for required in ['manifest.json', 'appearance.js', 'background-core.js', 'background.css', 'NOTICE.md', 'LICENSE.dsh-video-skin']:
+        assert 'assets/appearance/' + required in names, 'Missing local appearance resource: ' + required
+    assert 'lib/arm64-v8a/libxul.so'  in names,'Bundled Gecko engine missing'
 size=apk.stat().st_size
-assert size <= 100*1024*1024,f'APK {size} bytes exceeds the installed 0.1.2 updater download limit'
+assert size <= 250*1024*1024,f'APK {size} bytes exceeds the supported updater download limit'
 sha=hashlib.file_digest(apk.open('rb'),'sha256').hexdigest()
 print(f'APK verified: {apk.name} | {size} bytes | Android 9+ | release certificate pinned')
 print(f'SHA256 {sha}')

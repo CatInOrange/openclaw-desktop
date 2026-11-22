@@ -27,6 +27,9 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.Switch
+import android.widget.SeekBar
+import org.json.JSONObject
 import android.window.OnBackInvokedDispatcher
 import java.util.concurrent.Executors
 import java.io.File
@@ -43,6 +46,9 @@ class MainActivity : Activity() {
     private lateinit var retryButton: Button
     private lateinit var progress: ProgressBar
     private lateinit var subtitle: TextView
+    private var bootVideo: BootVideo? = null
+    private var foregroundActive = false
+    private val appearance by lazy { getSharedPreferences("appearance", MODE_PRIVATE) }
     private var browser: GeckoView? = null
     private var session: GeckoSession? = null
     private var canGoBack = false
@@ -65,6 +71,19 @@ class MainActivity : Activity() {
         createNativeUi()
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
+        }
+        if (BootVideo.claim() && appearance.getBoolean("boot", true)) {
+            val container = FrameLayout(this)
+            (root.parent as ViewGroup).removeView(root)
+            container.addView(root, FrameLayout.LayoutParams(-1, -1))
+            val clip = BootVideo(this, appearance.getBoolean("sound", true)) {
+                bootVideo = null
+                session?.setActive(foregroundActive)
+                if (browser == null) showSettings()
+            }
+            bootVideo = clip
+            container.addView(clip, FrameLayout.LayoutParams(-1, -1))
+            setContentView(container)
         }
         val saved = preferences.getString("gateway", null)
         val address = saved?.let { runCatching { GatewayPolicy.normalize(it) }.getOrNull() }
@@ -186,7 +205,7 @@ class MainActivity : Activity() {
         gateway = address
         subtitle.text = "${address.host} · Gecko 160"
         val runtime = GeckoProfile.prepare(this, address.origin)
-        val web = GeckoView(this)
+        val web = GeckoView(this).apply { setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW) }
         browser = web
         val gecko = GeckoSession()
         session = gecko
@@ -261,7 +280,29 @@ class MainActivity : Activity() {
         content.addView(web, 0, FrameLayout.LayoutParams(-1, -1))
         // Cookies/localStorage live in the engine profile, not this activity Bundle.
         val target = savedState?.getString("pageUrl")?.takeIf { GatewayPolicy.sameOrigin(it, address.url) } ?: address.url
-        gecko.loadUri(target)
+        // Install before navigation so the very first page gets isolated styling.
+        runtime.webExtensionController.ensureBuiltIn("resource://android/assets/appearance/", "appearance@openclaw.mobile").accept({ extension ->
+            if (!isDestroyed && !isFinishing && extension != null) {
+                gecko.webExtensionController.setMessageDelegate(extension, object : WebExtension.MessageDelegate {
+                    override fun onMessage(nativeApp: String, message: Any, sender: WebExtension.MessageSender): GeckoResult<Any>? {
+                        val current = gateway ?: return GeckoResult.fromValue<Any>(JSONObject().put("allowed", false))
+                        val allowed = nativeApp == "appearance" && sender.session === gecko && sender.isTopLevel &&
+                            sender.environmentType == WebExtension.MessageSender.ENV_TYPE_CONTENT_SCRIPT &&
+                            GatewayPolicy.sameOrigin(sender.url, current.url) &&
+                            (message as? JSONObject)?.optString("type") == "settings"
+                        val response = JSONObject().put("allowed", allowed)
+                        if (allowed) response.put("enabled", appearance.getBoolean("background", true))
+                            .put("active", foregroundActive && bootVideo == null && !mainFrameFailed)
+                            .put("strength", appearance.getInt("strength", 60).coerceIn(0, 100))
+                            .put("glassTransparency", appearance.getInt("glass", 78).coerceIn(0, 100))
+                        return GeckoResult.fromValue<Any>(response)
+                    }
+                }, "appearance")
+                gecko.loadUri(target)
+            }
+        }, { _ ->
+            if (!isDestroyed && !isFinishing) { toast("外观加载失败，已恢复原版界面"); gecko.loadUri(target) }
+        })
     }
 
     private fun retry() {
@@ -277,6 +318,7 @@ class MainActivity : Activity() {
     }
 
     private fun showSettings() {
+        if (bootVideo != null) return
         if (settingsDialog?.isShowing == true) return
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(8), dp(22), 0) }
         body.addView(text("填写手机可访问的 Gateway 地址。电脑的 localhost / 127.0.0.1 不代表那台电脑。", 13f))
@@ -289,6 +331,7 @@ class MainActivity : Activity() {
         }
         body.addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60)))
         body.addView(text("请勿把 Token 放在地址中。登录与配对在 Control UI 内进行。不同服务器使用独立登录空间；切换服务器需退出后重新打开，旧登录保留。", 12f).apply { alpha = 0.75f })
+        body.addView(Button(this).apply { text = "视频与外观"; setOnClickListener { showAppearance() } })
         body.addView(Button(this).apply { text = "检查应用更新 · ${BuildConfig.VERSION_NAME}"; setOnClickListener { startActivity(Intent(this@MainActivity, UpdateActivity::class.java)) } })
         val dialog = AlertDialog.Builder(this).setTitle("连接设置").setView(body).setPositiveButton("连接", null).setNegativeButton("取消", null).create()
         settingsDialog = dialog
@@ -315,6 +358,38 @@ class MainActivity : Activity() {
         }
         dialog.setOnDismissListener { if (settingsDialog === dialog) settingsDialog = null }
         dialog.show()
+    }
+
+    private fun showAppearance() {
+        val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(8), dp(24), dp(8)) }
+        fun toggle(key: String, title: String) {
+            body.addView(Switch(this).apply {
+                text = title; isChecked = appearance.getBoolean(key, true)
+                setPadding(0, dp(10), 0, dp(10))
+                setOnCheckedChangeListener { _, checked -> appearance.edit().putBoolean(key, checked).apply() }
+            })
+        }
+        fun slider(key: String, title: String, fallback: Int) {
+            val label = text("$title · ${appearance.getInt(key, fallback)}%", 14f)
+            body.addView(label)
+            body.addView(SeekBar(this).apply {
+                max = 100; progress = appearance.getInt(key, fallback)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(bar: SeekBar, value: Int, user: Boolean) {
+                        label.text = "$title · $value%"
+                        if (user) appearance.edit().putInt(key, value).apply()
+                    }
+                    override fun onStartTrackingTouch(bar: SeekBar) = Unit
+                    override fun onStopTrackingTouch(bar: SeekBar) = Unit
+                })
+            })
+        }
+        toggle("boot", "开机动画（下次启动生效）")
+        toggle("sound", "开机声音（背景始终静音）")
+        toggle("background", "动态背景")
+        slider("strength", "背景强度", 60)
+        slider("glass", "毛玻璃透明度", 78)
+        AlertDialog.Builder(this).setTitle("视频与外观").setView(body).setPositiveButton("完成", null).show()
     }
 
     private fun confirmProfileSwitch(address: GatewayPolicy.Address, settings: AlertDialog) {
@@ -384,12 +459,14 @@ class MainActivity : Activity() {
         outState.putString("pageUrl", lastInternalUrl)
         super.onSaveInstanceState(outState)
     }
-    override fun onPause() { session?.setActive(false); super.onPause() }
-    override fun onResume() { super.onResume(); session?.setActive(true) }
+    override fun onPause() { foregroundActive = false; bootVideo?.setForeground(false); session?.setActive(false); super.onPause() }
+    override fun onResume() { super.onResume(); foregroundActive = true; bootVideo?.setForeground(true); session?.setActive(bootVideo == null) }
     @Deprecated("Platform back navigation retains browser history")
     override fun onBackPressed() { navigateBack() }
-    private fun navigateBack() { if (canGoBack) session?.goBack() else finish() }
+    private fun navigateBack() { if (bootVideo != null) return; if (canGoBack) session?.goBack() else finish() }
     override fun onDestroy() {
+        foregroundActive = false
+        bootVideo?.finishVideo()
         cancelFilePrompt()
         documentExecutor.shutdown()
         settingsDialog?.dismiss()

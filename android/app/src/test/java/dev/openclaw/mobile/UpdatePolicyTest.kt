@@ -30,4 +30,25 @@ class UpdatePolicyTest {
         assertEquals(hash, UpdatePolicy.checksum("$hash  app.apk\n", "app.apk"))
         try { UpdatePolicy.checksum("$hash  other.apk", "app.apk"); fail("Wrong file accepted") } catch (_: IllegalStateException) { }
     }
+
+    private val endpoint = "https://updates.example.invalid/openclaw-desktop/android/latest.json"
+    private fun manifest(): JSONObject = JSONObject().put("schemaVersion", 1).put("version", "0.1.4")
+        .put("apkUrl", "https://updates.example.invalid/openclaw-desktop/android/releases/android-v0.1.4/OpenClaw-Android-0.1.4.apk")
+        .put("size", 123).put("sha256", "a".repeat(64))
+    @Test fun mirrorSelectsNewVersionAndRejectsDowngrades() {
+        val next = UpdatePolicy.selectManifest(manifest().toString(), "0.1.3", endpoint)!!
+        assertEquals("0.1.4", next.version)
+        assertEquals("a".repeat(64), next.sha256)
+        assertNull(UpdatePolicy.selectManifest(manifest().toString(), "0.1.4", endpoint))
+        assertNull(UpdatePolicy.selectManifest(manifest().toString(), "0.2.0", endpoint))
+    }
+    @Test fun mirrorRejectsForeignOriginsAndMalformedMetadata() {
+        val valid = manifest().getString("apkUrl")
+        for (url in listOf(valid.replace("https:", "http:"), valid.replace("updates.example.invalid", "evil.example"), valid + "?token=x", valid.replace("/releases/", "/releases/../"), valid.replace("/releases/", "/other/"))) {
+            assertFalse(UpdatePolicy.mirrorUrl(url, endpoint))
+        }
+        for (row in listOf(manifest().put("sha256", "bad"), manifest().put("size", 0), manifest().put("size", UpdatePolicy.MAX_APK + 1), manifest().put("schemaVersion", 2), manifest().put("apkUrl", valid.replace("0.1.4.apk", "0.1.3.apk")))) {
+            try { UpdatePolicy.selectManifest(row.toString(), "0.1.3", endpoint); fail("Invalid manifest accepted") } catch (_: IllegalArgumentException) { }
+        }
+    }
 }

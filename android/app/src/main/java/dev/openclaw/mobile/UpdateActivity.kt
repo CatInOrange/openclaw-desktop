@@ -42,12 +42,14 @@ class UpdateActivity : Activity() {
         status.text = message; action.isEnabled = false
         worker.execute {
             try { work() } catch (error: Exception) {
-                ui { status.text = "更新失败：${error.message ?: "请检查网络后重试"}"; action.text = "重试检查"; action.isEnabled = true; action.setOnClickListener { check() } }
+                ui { status.text = "更新失败：${if (error is java.io.IOException) "网络连接失败，请重试" else "清单或文件验证失败，请重试"}"; action.text = "重试检查"; action.isEnabled = true; action.setOnClickListener { check() } }
             }
         }
     }
     private fun fetch(url: String, limit: Long, consume: (java.io.InputStream) -> Unit) {
         val connection = URL(url).openConnection() as HttpURLConnection
+        connection.useCaches = false
+        connection.setRequestProperty("Cache-Control", "no-cache")
         connection.connectTimeout = 15000; connection.readTimeout = 30000
         connection.setRequestProperty("User-Agent", "OpenClaw-Android/${BuildConfig.VERSION_NAME}")
         try {
@@ -69,7 +71,9 @@ class UpdateActivity : Activity() {
     private fun check() {
         verified = false
         task("正在检查新版…") {
-            val next = UpdatePolicy.select(text("https://api.github.com/repos/${UpdatePolicy.REPO}/releases?per_page=100"), BuildConfig.VERSION_NAME)
+            val endpoint = BuildConfig.UPDATE_MANIFEST_URL
+            require(endpoint.startsWith("https://")) { "此构建未配置更新源" }
+            val next = UpdatePolicy.selectManifest(text(endpoint), BuildConfig.VERSION_NAME, endpoint)
             release = next
             ui {
                 status.text = if (next == null) "已是最新版本 ${BuildConfig.VERSION_NAME}" else "发现 ${next.version}（${next.size / 1024} KB）\n下载校验后，由系统确认覆盖安装；登录数据保留。下载时请留在本页。"
@@ -84,7 +88,7 @@ class UpdateActivity : Activity() {
             apk.parentFile!!.mkdirs()
             verified = false
             try {
-                val expected = UpdatePolicy.checksum(text(next.sums), next.name)
+                val expected = next.sha256 ?: UpdatePolicy.checksum(text(next.sums), next.name)
                 fetch(next.apk, UpdatePolicy.MAX_APK) { input -> apk.outputStream().use { input.copyTo(it) } }
                 require(apk.length() == next.size) { "APK 下载不完整" }
                 val digest = apk.inputStream().use { input ->

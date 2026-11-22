@@ -11,8 +11,11 @@ android {
         minSdk = 28
         targetSdk = 35
         ndk { abiFilters += listOf("arm64-v8a") }
-        versionCode = 4
-        versionName = "0.1.3"
+        versionCode = 5
+        versionName = "0.1.4"
+        val updateUrl = System.getenv("ANDROID_UPDATE_MANIFEST_URL") ?: ""
+        val escapedUrl = updateUrl.replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"$escapedUrl\"")
         testInstrumentationRunner = "android.test.InstrumentationTestRunner"
     }
     val signingValues = listOf("ANDROID_RELEASE_KEYSTORE", "ANDROID_RELEASE_STORE_PASSWORD", "ANDROID_RELEASE_KEY_PASSWORD", "ANDROID_RELEASE_KEY_ALIAS").map(System::getenv)
@@ -30,6 +33,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (System.getenv("CI") == "true") require(!System.getenv("ANDROID_UPDATE_MANIFEST_URL").isNullOrBlank()) { "Update endpoint secret missing" }
             if (signingValues.all { !it.isNullOrBlank() }) signingConfig = signingConfigs.getByName("distribution")
         }
     }

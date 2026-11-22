@@ -1,13 +1,14 @@
 package dev.openclaw.mobile
 
 import org.json.JSONArray
+import org.json.JSONObject
 import java.net.URI
 
-/** Only Android stable releases from our own repository can supply updates. */
+/** Download origin is pinned to the build-injected update endpoint. APK identity is checked before install. */
 object UpdatePolicy {
     const val REPO = "CatInOrange/openclaw-desktop"
     const val CERT = "d52b0f680879d78baedd77e91b3c12118fce36a606bd80d92773d5b5c34846c1"
-    data class Release(val version: String, val apk: String, val sums: String, val name: String, val size: Long)
+    data class Release(val version: String, val apk: String, val sums: String, val name: String, val size: Long, val sha256: String? = null)
     fun version(value: String): List<Int>? { return Regex("^(\\d+)\\.(\\d+)\\.(\\d+)$").matchEntire(value)?.groupValues?.drop(1)?.map { it.toIntOrNull() ?: return null } }
     fun newer(candidate: String, current: String): Boolean {
         val a = version(candidate) ?: return false
@@ -43,6 +44,28 @@ object UpdatePolicy {
             if (apk != null && sums != null && size in 1..MAX_APK) best = Release(ver, apk, sums, name, size)
         }
         return best
+    }
+    fun mirrorUrl(value: String, manifestUrl: String): Boolean {
+        val uri = runCatching { URI(value) }.getOrNull() ?: return false
+        val base = runCatching { URI(manifestUrl) }.getOrNull() ?: return false
+        return base.scheme == "https" && !base.host.isNullOrBlank() &&
+            uri.scheme == "https" && uri.host == base.host && uri.port == -1 &&
+            uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null &&
+            uri.normalize().rawPath == uri.rawPath && uri.rawPath.startsWith(base.rawPath.substringBeforeLast('/') + "/releases/")
+    }
+    fun selectManifest(json: String, current: String, manifestUrl: String): Release? {
+        val row = JSONObject(json)
+        require(row.getInt("schemaVersion") == 1) { "不支持的更新清单" }
+        val ver = row.getString("version")
+        require(version(ver) != null) { "更新版本无效" }
+        if (!newer(ver, current)) return null
+        val name = "OpenClaw-Android-$ver.apk"
+        val url = row.getString("apkUrl")
+        val size = row.getLong("size")
+        val sha = row.getString("sha256").lowercase()
+        require(mirrorUrl(url, manifestUrl) && URI(url).rawPath.endsWith("/$name")) { "更新下载来源无效" }
+        require(size in 1..MAX_APK && Regex("[a-f0-9]{64}").matches(sha)) { "更新文件信息无效" }
+        return Release(ver, url, "", name, size, sha)
     }
     const val MAX_APK = 250L * 1024 * 1024
     fun checksum(text: String, name: String): String {

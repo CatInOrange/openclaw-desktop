@@ -1,11 +1,11 @@
-# OpenClaw Android 0.1.3 — 连接版
+# OpenClaw Android 0.1.4 — 连接版
 
 这是独立 Android 原生壳，使用系统 WebView 加载现有 Gateway Control UI。它不是 Electron APK，也不包含 Windows 的 Node 运行时、视频壁纸或桌宠大素材。
 
 ## 安装与连接
 
 - Android 9（API28）及以上，设备需要可用且较新的系统 WebView。
-- 安装 `OpenClaw-Android-0.1.3.apk`，按系统要求允许此来源安装。
+- 安装 `OpenClaw-Android-0.1.4.apk`，按系统要求允许此来源安装。
 - 输入手机能访问的 Gateway 地址。手机的 `127.0.0.1` 是手机本身，不是电脑；请使用手机可达的 LAN/VPN/HTTPS 地址。
 - 优先使用有效证书的 HTTPS。HTTP 可以由用户明确配置，但 WebCrypto/设备身份等能力受安全上下文限制，不能保证在明文地址下完成认证。
 - 登录、设备配对和模型/会话功能仍由原版 Control UI 提供，不修改 Gateway，不把 Token 放入入口地址。
@@ -65,3 +65,11 @@
 ### 第三方内核与维护
 
 GeckoView 是未修改的 Mozilla 官方预编译组件，按 MPL-2.0 等上游许可证分发，内含第三方许可证见 Gecko 的 `about:license`。官方源码与构建信息： https://firefox-source-docs.mozilla.org/mobile/android/geckoview/ 、 https://hg.mozilla.org/releases/mozilla-release/ 。后续跟进官方稳定/安全版本，依赖固定版本并由 GitHub 构建，升级后真机回归，不长期冻结内核。
+
+## 0.1.4 COS 更新线路
+
+更新页读取构建时注入的固定 HTTPS 清单地址，从同源 COS 下载公开可读 APK。校验 SHA-256、包名、递增版本和固定签名后由系统确认安装；不携带 COS 上传密钥。
+
+真实更新地址和 COS 配置仅放 GitHub Secrets，不提交源码、Release 说明或日志。客户端下载时仍可观察地址。首次从旧版迁移需手动覆盖安装一次，之后在应用内检查更新。
+
+发布：在分支通过检查后，手动运行 Android workflow（publish=true）。CI 上传版本目录后最后替换 latest.json；普通 push/PR 不发布。清单禁用缓存，历史安装包使用版本路径；COS 对象独立于 AliceChat。所需 Secrets：ANDROID_UPDATE_MANIFEST_URL、COS_BUCKET、COS_REGION、COS_SECRET_ID、COS_SECRET_KEY，以及既有 Android 签名配置。

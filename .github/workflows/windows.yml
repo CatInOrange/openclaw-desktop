@@ -1,4 +1,4 @@
-name: Windows portable release
+name: Windows desktop release
 on:
   push:
     tags: ['v*']
@@ -32,6 +32,9 @@ jobs:
       - name: Compile independent update helper (no GUI)
         shell: powershell
         run: ./scripts/build-update-helper.ps1
+      - name: Compile fixed directory launcher and update engine (no GUI)
+        shell: powershell
+        run: ./scripts/build-directory-launcher.ps1
       - name: Non-GUI checks
         shell: pwsh
         run: |
@@ -54,6 +57,10 @@ jobs:
       - name: Verify actual updater handoff and parent exit (non-GUI)
         shell: pwsh
         run: node scripts/test-portable-handoff.cjs
+      - name: Directory launcher and update transactions with actual Electron Node runtime (no GUI)
+        shell: powershell
+        timeout-minutes: 8
+        run: ./scripts/test-directory-native.ps1 -ElectronRuntime 'dist/win-unpacked/OpenClaw Desktop.exe'
       - name: Verify personal signing on a disposable copy (non-GUI)
         timeout-minutes: 5
         shell: pwsh
@@ -98,11 +105,13 @@ jobs:
             node scripts/measure-portable-start.cjs
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Create unpack-once archive
+      - name: Create managed directory archive
         shell: pwsh
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          Compress-Archive -Path dist/win-unpacked/* -DestinationPath "dist/OpenClaw-Desktop-$version-win-x64-unpacked.zip" -CompressionLevel Optimal
+          node scripts/build-directory-package.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path dist/directory/* -DestinationPath "dist/OpenClaw-Desktop-$version-win-x64-directory.zip" -CompressionLevel Optimal
       - name: Create checksums and include quick-start
         shell: pwsh
         run: |
@@ -110,6 +119,7 @@ jobs:
           Copy-Item README.md dist/README.md
           Copy-Item docs/PERSONAL-SIGNING.md dist/PERSONAL-SIGNING.md
           Copy-Item docs/UPDATES.md dist/UPDATES.md
+          Copy-Item docs/DIRECTORY-UPDATES.md dist/DIRECTORY-UPDATES.md
           Copy-Item scripts/personal-sign.ps1 dist/personal-sign.ps1
           Get-ChildItem dist -File | Where-Object { $_.Extension -in '.exe', '.zip' } | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -122,7 +132,7 @@ jobs:
           name: OpenClaw-Desktop-Windows-x64
           path: |
             dist/*.exe
-            dist/*-unpacked.zip
+            dist/*-directory.zip
             dist/STARTUP-MEASUREMENTS.json
             dist/SHA256SUMS
             dist/TRY-WINDOWS.md
@@ -130,6 +140,7 @@ jobs:
             dist/PERSONAL-SIGNING.md
             dist/personal-sign.ps1
             dist/UPDATES.md
+            dist/DIRECTORY-UPDATES.md
           if-no-files-found: error
       - name: Publish tagged preview
         if: startsWith(github.ref, 'refs/tags/v')
@@ -137,5 +148,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME --verify-tag --prerelease --title "OpenClaw Desktop $env:GITHUB_REF_NAME Preview" --notes-file RELEASE-NOTES.md dist/*.exe dist/*-unpacked.zip dist/STARTUP-MEASUREMENTS.json dist/SHA256SUMS dist/TRY-WINDOWS.md dist/README.md dist/PERSONAL-SIGNING.md dist/personal-sign.ps1 dist/UPDATES.md
+          gh release create $env:GITHUB_REF_NAME --verify-tag --prerelease --title "OpenClaw Desktop $env:GITHUB_REF_NAME Preview" --notes-file RELEASE-NOTES.md dist/*.exe dist/*-directory.zip dist/STARTUP-MEASUREMENTS.json dist/SHA256SUMS dist/TRY-WINDOWS.md dist/README.md dist/PERSONAL-SIGNING.md dist/personal-sign.ps1 dist/UPDATES.md dist/DIRECTORY-UPDATES.md
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

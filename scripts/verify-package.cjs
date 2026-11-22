@@ -31,3 +31,7 @@ for (const name of ['pet-window.cjs','pet-observer.cjs','pet-state.cjs','pet-pre
 assert.ok(extractFile(archive,path.normalize('assets/pet/NOTICE.md')).length);
 
 for (const file of ['update-core.cjs','updater.cjs','portable-update.cjs','portable-update-helper.exe']) assert.ok(extractFile(archive,path.normalize('src/'+file)).length, `missing updater file: ${file}`);
+
+for (const file of ['directory-update.cjs','startup-trace.cjs']) assert.ok(extractFile(archive,path.normalize('src/'+file)).length, `missing directory update file: ${file}`);
+const directoryEngine=extractFile(archive,path.normalize('src/directory-launcher.exe'));
+assert.equal(directoryEngine.subarray(0,2).toString('ascii'),'MZ','directory updater must be a native Windows executable');

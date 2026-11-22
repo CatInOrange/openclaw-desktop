@@ -3,3 +3,5 @@ dist/
 test-output/
 
 src/portable-update-helper.exe
+
+src/directory-launcher.exe

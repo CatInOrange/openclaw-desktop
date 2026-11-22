@@ -27,3 +27,8 @@ Windows CI 用临时控制台程序验证真实替换、校验拒绝和启动失
 后续真实 Windows 对照测试确认：Windows PowerShell 使用 detached:true 时在脚本执行前就退出，四组“脚本/编码命令 × 输入管道”均无回执；相同参数去掉 detached 后四组均有回执。最终生产助手改为独立的无界面 .NET EXE，不再使用 PowerShell。CI 验证真正的 Node 和 Electron（ELECTRON_RUN_AS_NODE，无 GUI）父进程退出后，助手仍能完成替换与保留旧版。v0.4.3 标签构建未通过此测试，未发布安装包。
 
 独立助手使用 Windows 自带 .NET Framework 编译为 WinExe（不创建任何界面/控制台），不要求安装器、不修改执行策略、不运行常驻服务；保留启动、提交、父进程退出、校验、替换和启动结果的日志。
+
+
+## v0.4.7 免安装目录版
+
+目录版与单文件版共用托盘更新入口，但分别只选择 `-directory.zip` 和 `.exe`。目录版采用固定启动器和独立版本目录，下载校验后询问重启；旧进程退出后助手安全部署、切换指针，等待本地窗口健康确认，失败回退。详见 [目录更新协议](DIRECTORY-UPDATES.md)。v0.4.6 的旧 raw 目录首次需手动解压新目录包，此后可自动整包更新。固定入口是根目录 `OpenClaw.exe`，不是版本目录内的 `OpenClaw Desktop.exe`。

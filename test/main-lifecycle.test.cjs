@@ -13,7 +13,7 @@ const localRequire = createRequire(mainPath);
 async function fixture(video = {}, platform = 'linux', observerReady = Promise.resolve()) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'oc-main-'));
   fs.writeFileSync(path.join(directory, 'desktop.json'), JSON.stringify({gateway: 'https://claw.example.com/', video}));
-  let window, remote, settings, failWrites = false;
+  let window, remote, settings, failWrites = false; const healthChecks = [];
   const app = new EventEmitter();
   Object.assign(app, {setName() {}, setPath() {}, getPath: () => directory, getVersion: () => '0.3.0', requestSingleInstanceLock: () => true, whenReady: () => Promise.resolve(), quit() {}, exit() {throw new Error('startup failed');}});
   class Contents extends EventEmitter {
@@ -50,6 +50,7 @@ async function fixture(video = {}, platform = 'linux', observerReady = Promise.r
   const context = {__dirname: path.dirname(mainPath), process: {env: {}, platform}, setTimeout, clearTimeout, require(name) {
     if (name === 'electron') return electron;
     if (name === 'node:fs') return fakeFs;
+    if (name === './directory-update.cjs') return {...localRequire(name), acknowledgeDirectoryLaunch: async args => {healthChecks.push({visible:window.visible,args});return true;}};
     if (name === './pet-window.cjs') return {createPetWindow: () => ({event() {}, show() {}, stop() {}})};
     if (name === './pet-observer.cjs') return {watchPetGateway: () => Object.assign(() => {}, {ready: observerReady})};
     if (name === './theme-sync.cjs') return {watchTheme: () => () => {}};
@@ -58,7 +59,7 @@ async function fixture(video = {}, platform = 'linux', observerReady = Promise.r
   }};
   vm.runInNewContext(fs.readFileSync(mainPath, 'utf8') + '\nglobalThis.hooks = {getState: () => state, finishBoot, openAppearance, backToWorkspace, reconnect, setVideo};', context);
   await new Promise(done => setImmediate(done));
-  return {window, remote, app, hooks: context.hooks, settings: () => settings(), handlers,
+  return {window, remote, app, healthChecks, hooks: context.hooks, settings: () => settings(), handlers,
     rejectWrites: () => {failWrites = true;},
     cleanup() {app.emit('before-quit'); fs.rmSync(directory, {recursive: true, force: true});},
     saved: () => JSON.parse(fs.readFileSync(path.join(directory, 'desktop.json'), 'utf8'))};
@@ -165,4 +166,16 @@ test('late pet observer readiness does not reload the workspace', async () => {
     await new Promise(done => setImmediate(done));
     assert.equal(f.remote.webContents.loads, 1);
   } finally {f.cleanup();}
+});
+
+
+test('directory launch health is acknowledged after local window show without waiting for Gateway', async () => {
+ const f = await fixture({}, 'win32', new Promise(() => {}));
+ try {
+  assert.equal(f.healthChecks.length, 1);
+  assert.equal(f.healthChecks[0].visible, true);
+  assert.equal(f.hooks.getState().phase, 'loading');
+  f.hooks.reconnect();
+  assert.equal(f.healthChecks.length, 1);
+ } finally {f.cleanup();}
 });

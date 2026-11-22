@@ -23,11 +23,12 @@ function assetURL(value,tag,name) {
  if(url.protocol!=='https:'||url.host!=='github.com'||url.pathname!==expected||url.search||url.hash||url.username||url.password)throw new Error('更新资源地址不属于官方发布');
  return url.href;
 }
-function selectRelease(releases,current,channel='preview') {
+function selectRelease(releases,current,channel='preview',format='portable') {
+ if(!['portable','directory'].includes(format))throw new Error('更新包类型无效');
  if(!Array.isArray(releases))throw new Error('更新服务返回格式无效');
  const candidates=releases.filter(r=>!r.draft&&version(r.tag_name)&&(channel==='preview'||(!r.prerelease&&!version(r.tag_name).pre.length))&&compare(r.tag_name,current)>0).sort((a,b)=>compare(b.tag_name,a.tag_name));
  for(const r of candidates){
-  const name=`OpenClaw-Desktop-${r.tag_name.replace(/^v/,'')}-win-x64.exe`;
+  const name=`OpenClaw-Desktop-${r.tag_name.replace(/^v/,'')}-win-x64${format==='directory'?'-directory.zip':'.exe'}`;
   const exe=r.assets?.find(a=>a.name===name&&a.state==='uploaded');const sums=r.assets?.find(a=>a.name==='SHA256SUMS'&&a.state==='uploaded');
   if(!exe||!sums)continue;
   if(!(exe.size>0&&exe.size<=1024*1024*1024))throw new Error('更新包大小无效');
@@ -43,8 +44,8 @@ async function smallText(r,max=2*1024*1024){
  for await(const chunk of r.body){size+=chunk.length;if(size>max)throw new Error('更新元数据过大');parts.push(Buffer.from(chunk));}
  return Buffer.concat(parts).toString('utf8');
 }
-async function check(fetcher,current,channel,signal){
- const text=await smallText(await response(fetcher,API,signal));return selectRelease(JSON.parse(text),current,channel);
+async function check(fetcher,current,channel,signal,format='portable'){
+ const text=await smallText(await response(fetcher,API,signal));return selectRelease(JSON.parse(text),current,channel,format);
 }
 function checksum(text,name){
  const matches=text.replace(/^\uFEFF/,'').split(/\r?\n/).map(line=>/^([a-fA-F0-9]{64})\s+\*?(.+)$/.exec(line)).filter(m=>m&&m[2]===name);
@@ -52,7 +53,7 @@ function checksum(text,name){
 }
 async function download(fetcher,release,directory,signal,onProgress=()=>{}) {
  const hash=checksum(await smallText(await response(fetcher,release.sumsURL,signal),65536),release.name);
- await fs.mkdir(directory,{recursive:true});const file=path.join(directory,'download.exe');
+ await fs.mkdir(directory,{recursive:true});const file=path.join(directory,release.name.endsWith('.zip')?'download.zip':'download.exe');
  const handle=await fs.open(file,'wx');const digest=createHash('sha256');let count=0;
  try {
   const r=await response(fetcher,release.url,signal);

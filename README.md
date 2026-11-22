@@ -1,4 +1,4 @@
-# OpenClaw Desktop — 0.4.6 Preview
+# OpenClaw Desktop — 0.4.7 Preview
 
 独立 Electron 桌面壳，加载 Gateway 提供的原版 Control UI。非官方客户端；不修改 DSH、OpenClaw Gateway 或服务器 UI 文件。
 
@@ -16,7 +16,7 @@
 
 ## 使用
 
-退出旧版本后运行 `OpenClaw-Desktop-0.4.6-win-x64.exe`，无需安装 Node.js 或 DSH，需要已有可访问的 Gateway。
+退出旧版本后运行 `OpenClaw-Desktop-0.4.7-win-x64.exe`，无需安装 Node.js 或 DSH，需要已有可访问的 Gateway。
 
 输入完整 Gateway URL，例如 `https://claw.example.com`、`http://127.0.0.1:18789` 或自定义路径。不要把 Token 放进地址；登录和设备配对在原版 Control UI 中完成。
 
@@ -77,7 +77,10 @@ Linux 不运行 GUI 或虚拟显示测试。Windows 的实际播放、声音、�
 
 ## 启动速度与两种免安装包
 
-- `OpenClaw-Desktop-0.4.6-win-x64.exe`：单文件便携版。每次完全退出后启动都需要先解压运行时；启动前的耗时会受磁盘、杀毒扫描等本机因素影响。
-- `OpenClaw-Desktop-0.4.6-win-x64-unpacked.zip`：免安装目录版。完整解压一次，之后直接运行目录中的 `OpenClaw Desktop.exe`；不要只拖出 EXE。此版本不走单文件原位更新，后续手动解压新包。两种包使用同一用户配置目录。
-- v0.4.6 将音乐依赖保留在 app.asar，只解出音乐 Worker 引导文件，避免每次便携启动解压大量依赖散文件。Worker 仍在点播放/登录后才启动，不阻塞主窗口加载。
+- `OpenClaw-Desktop-0.4.7-win-x64.exe`：单文件便携版。每次完全退出后启动都需要先解压运行时；启动前的耗时会受磁盘、杀毒扫描等本机因素影响。
+- `OpenClaw-Desktop-0.4.7-win-x64-directory.zip`：免安装目录版。完整解压一次，之后运行根目录 `OpenClaw.exe`；不要只拖出 EXE。目录版现已支持托盘「检查更新」下载整包、切换版本及启动失败回退。两种包使用同一用户配置目录。
+- 自 v0.4.6 起将音乐依赖保留在 app.asar，只解出音乐 Worker 引导文件，避免每次便携启动解压大量依赖散文件。Worker 仍在点播放/登录后才启动，不阻塞主窗口加载。
 - 用户数据目录中的 `startup.log` 记录不含 URL、聊天内容或凭据的阶段耗时，可区分进程入口、Electron ready、本地壳显示、开机动画结束、Control UI 加载。它不能独自测量 Electron 启动之前的便携解压耗时；CI 另以 Electron Node 模式对比便携/目录版 bootstrap，不将其冒充 GUI 启动时间。
+
+
+v0.4.7 起目录版采用固定启动器＋版本目录。旧 v0.4.6 目录版首次需要手动换一次新 ZIP，之后用根目录 OpenClaw.exe 启动并在托盘更新。详细规则、回退和验证边界见 [目录版更新](docs/DIRECTORY-UPDATES.md)。本阶段是整包更新，尚未实现文件级增量。

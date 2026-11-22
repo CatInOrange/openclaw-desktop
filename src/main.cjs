@@ -7,6 +7,7 @@ const {SCHEME, MEDIA_URL, createMediaHandler} = require('./media.cjs');
 const {watchBackground} = require('./background.cjs');
 const fs = require('node:fs');
 const {createUpdater} = require('./updater.cjs');
+const {acknowledgeDirectoryLaunch} = require('./directory-update.cjs');
 let updater;
 function refreshTray(){if(tray&&!quitting)tray.setContextMenu(Menu.buildFromTemplate(trayItems()));}
 function trayItems(){return [
@@ -334,6 +335,8 @@ else {
       if (config.window?.maximized) win.maximize();
       showWindow();
       startupTrace('window-shown');
+      // Local window health only: an offline Gateway must not cause update rollback.
+      void acknowledgeDirectoryLaunch({rootHint:process.env.OPENCLAW_INSTALL_ROOT,token:process.env.OPENCLAW_LAUNCH_TOKEN,exe:app.getPath('exe'),version:app.getVersion()}).catch(()=>{});
       void updater.reportPrevious();
       if (state.bootPlaying) bootTimer = setTimeout(finishBoot, 20000);
       if (config.gateway) connect(config.gateway); else publish({phase: 'setup'});

@@ -19,7 +19,7 @@ async function fixture(video = {}, platform = 'linux', observerReady = Promise.r
   class Contents extends EventEmitter {
     constructor() {super(); this.url = ''; this.mainFrame = {url: ''};}
     setWindowOpenHandler() {} isDestroyed() {return false;}
-    loadURL(url) {this.url = url; this.mainFrame.url = url; return Promise.resolve();}
+    loadURL(url) {this.loads = (this.loads || 0) + 1; this.url = url; this.mainFrame.url = url; return Promise.resolve();}
     executeJavaScriptInIsolatedWorld(_world, scripts) {this.reveals = (this.reveals || 0) + 1; return Promise.resolve();}
     getZoomFactor() {return 1;}
     getURL() {return this.url;}
@@ -147,7 +147,6 @@ test('Windows caption overlay shares the full-height workspace without exposing 
 test('a stalled pet observer cannot block loading Control UI', async () => {
   const f = await fixture({bootEnabled: false}, 'win32', new Promise(() => {}));
   try {
-    await new Promise(done => setTimeout(done, 1100));
     assert.equal(f.remote.webContents.getURL(), 'https://claw.example.com/');
     f.remote.webContents.emit('did-finish-load');
     assert.equal(f.hooks.getState().phase, 'ready');
@@ -155,9 +154,15 @@ test('a stalled pet observer cannot block loading Control UI', async () => {
   } finally {f.cleanup();}
 });
 
-test('a rejected pet observer does not block Control UI', async () => {
-  const f = await fixture({bootEnabled: false}, 'win32', Promise.resolve().then(() => {throw new Error('CDP unavailable');}));
+test('late pet observer readiness does not reload the workspace', async () => {
+  let resolve;
+  const ready = new Promise(done => {resolve = done;});
+  const f = await fixture({bootEnabled: false}, 'win32', ready);
   try {
     assert.equal(f.remote.webContents.getURL(), 'https://claw.example.com/');
+    assert.equal(f.remote.webContents.loads, 1);
+    resolve();
+    await new Promise(done => setImmediate(done));
+    assert.equal(f.remote.webContents.loads, 1);
   } finally {f.cleanup();}
 });

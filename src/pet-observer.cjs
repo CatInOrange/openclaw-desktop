@@ -175,8 +175,9 @@ function watchPetGateway(wc, onEvent, {isTrusted = () => true} = {}) {
       wc.debugger.attach('1.3'); attached = true;
       await wc.debugger.sendCommand('Page.enable');
       const r = await wc.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', {source: code}); scriptId = r.identifier;
-      // For a newly created view this runs before loadURL; the persistent hook
-      // then runs before the Control UI creates its authenticated WebSocket.
+      // Navigation runs independently. Install in the current document too;
+      // if its socket already exists, stay unknown until a later connection.
+      // Never reload or delay Control UI just to obtain monitoring coverage.
       if (trusted()) await wc.debugger.sendCommand('Runtime.evaluate', {expression: code});
     } catch { offline(); }
   }

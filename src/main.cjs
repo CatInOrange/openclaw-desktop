@@ -1,5 +1,6 @@
 'use strict';
 const {app, BrowserWindow, WebContentsView, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog} = require('electron');
+const {DEFAULT_THEME, normalizeTheme} = require('./theme.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
@@ -60,11 +61,12 @@ function makeRemote() {
     if (!view.webContents.isDestroyed()) view.webContents.close();
   }
   const remote = new WebContentsView({webPreferences: {
+    preload: path.join(__dirname, 'remote-theme.cjs'),
     partition: 'persist:control-ui', nodeIntegration: false, contextIsolation: true,
     sandbox: true, webSecurity: true, allowRunningInsecureContent: false,
   }});
   view = remote;
-  remote.setBackgroundColor('#10151c');
+  remote.setBackgroundColor((state.theme || DEFAULT_THEME).background);
   win.contentView.addChildView(remote); placeView(); hideView();
   const wc = remote.webContents;
   let httpFailure = 0;
@@ -140,14 +142,25 @@ else {
     try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); if (!config || typeof config !== 'object' || Array.isArray(config)) config = {}; } catch { config = {}; }
     if (config.gateway) { try { config.gateway = normalizeGateway(config.gateway); } catch { delete config.gateway; } }
     state.address = config.gateway || '';
+    state.theme = normalizeTheme(config.theme) || DEFAULT_THEME;
     win = new BrowserWindow({
       ...restoreBounds(config.window, screen.getAllDisplays()), minWidth: 720, minHeight: 520,
-      show: false, title: 'OpenClaw Desktop', icon, backgroundColor: '#10151c',
+      show: false, title: 'OpenClaw Desktop', icon, backgroundColor: state.theme.background,
       autoHideMenuBar: true, frame: false,
       webPreferences: {preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true},
     });
     win.webContents.on('will-navigate', event => event.preventDefault());
     win.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
+    ipcMain.on('desktop:theme', (event, value) => {
+      if (!view || event.sender !== view.webContents || event.senderFrame !== view.webContents.mainFrame
+        || !sameOrigin(event.senderFrame.url, config.gateway)) return;
+      const theme = normalizeTheme(value);
+      if (!theme || JSON.stringify(theme) === JSON.stringify(state.theme)) return;
+      config.theme = theme; save();
+      win.setBackgroundColor(theme.background);
+      view.setBackgroundColor(theme.background);
+      publish({theme});
+    });
     // No native bridge is exposed to the remote Control UI; only this local shell can invoke IPC.
     for (const [name, handler] of Object.entries({
       initial: () => ({...state, maximized: win.isMaximized(), fullscreen: win.isFullScreen()}),

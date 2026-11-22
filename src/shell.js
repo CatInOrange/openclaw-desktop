@@ -4,6 +4,12 @@ let current = {}, busy = false;
 function render(state) {
   const enteringSetup = current.phase !== 'setup' && state.phase === 'setup';
   current = state;
+  if (state.theme) {
+    const style = document.documentElement.style;
+    style.setProperty('--titlebar-bg', state.theme.background);
+    style.setProperty('--titlebar-text', state.theme.foreground);
+    style.setProperty('--titlebar-hover', state.theme.dark ? '#ffffff18' : '#0000000d');
+  }
   $('setup').hidden = state.phase !== 'setup';
   $('waiting').hidden = !['loading', 'error'].includes(state.phase);
   $('footer').hidden = state.phase === 'ready';

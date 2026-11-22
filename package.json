@@ -1,7 +1,7 @@
 {
   "name": "openclaw-desktop-shell",
   "productName": "OpenClaw Desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Independent desktop shell for the original OpenClaw Control UI",
   "author": "OpenClaw Desktop contributors",
@@ -9,7 +9,7 @@
   "main": "src/main.cjs",
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/policy.test.cjs",
+    "test": "node --test test/*.test.cjs",
     "test:integration": "node test/integration.cjs",
     "dist:linux": "electron-builder --linux tar.gz",
     "dist:win": "electron-builder --win portable --x64"

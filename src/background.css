@@ -1,0 +1,6 @@
+/* Scoped overrides only: never change global --bg/--panel tokens or dialog colors. */
+#oc-desktop-video{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;user-select:none;contain:strict}
+#oc-desktop-video video{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
+html[data-oc-video="on"] openclaw-app{position:relative;z-index:1}
+html[data-oc-video="on"] .shell:not(.shell--settings){background-color:color-mix(in srgb,var(--bg-content,var(--bg)) var(--oc-video-surface,75%),transparent)!important;background-image:none!important}
+/* Keep sidebar, composer, menus, settings and overlays at their native opacity. */

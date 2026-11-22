@@ -1,24 +1,30 @@
 'use strict';
-const {app, BrowserWindow, WebContentsView, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog} = require('electron');
+const {app, BrowserWindow, WebContentsView, ipcMain, Menu, Tray, nativeImage, screen, shell, dialog, protocol, session} = require('electron');
 const {DEFAULT_THEME, normalizeTheme} = require('./theme.cjs');
 const {watchTheme} = require('./theme-sync.cjs');
+const {normalizeVideo, updateVideo} = require('./video-config.cjs');
+const {SCHEME, MEDIA_URL, createMediaHandler} = require('./media.cjs');
+const {watchBackground} = require('./background.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
 const {normalizeGateway, allowedExternal, sameOrigin, restoreBounds} = require('./policy.cjs');
 if (process.env.OPENCLAW_DESKTOP_USER_DATA) app.setPath('userData', path.resolve(process.env.OPENCLAW_DESKTOP_USER_DATA));
 app.setName('OpenClaw Desktop');
+// A media-only scheme: exactly two packaged MP4 files, never arbitrary local paths.
+protocol.registerSchemesAsPrivileged([{scheme: SCHEME, privileges: {standard: true, secure: true, stream: true, supportFetchAPI: true, bypassCSP: true}}]);
 const icon = path.join(__dirname, '../assets/icon.png');
 const shellUrl = pathToFileURL(path.join(__dirname, 'shell.html')).href;
 let win, view, tray, quitting = false, retryTimer, loadTimer, saveTimer, retryCount = 0, viewLoaded = false;
-let config = {}, configPath, stopThemeSync = () => {};
+let config = {}, configPath, stopThemeSync = () => {}, backgroundSync, bootTimer, remoteVisible = false;
 let state = {phase: 'setup', address: '', message: '连接你的 OpenClaw Gateway', canBack: false, trayAvailable: false};
 function save() {
   try {
     fs.mkdirSync(path.dirname(configPath), {recursive: true});
     fs.writeFileSync(configPath + '.tmp', JSON.stringify(config, null, 2), {mode: 0o600});
     fs.renameSync(configPath + '.tmp', configPath);
-  } catch { if (win && !win.isDestroyed()) publish({notice: '本地设置保存失败；下次启动可能需要重新填写地址。'}); }
+    return true;
+  } catch { if (win && !win.isDestroyed()) publish({notice: '本地设置保存失败；下次启动可能需要重新填写地址。'}); return false; }
 }
 function publish(next) {
   state = {...state, ...next};
@@ -28,19 +34,56 @@ function stopRetry() { clearTimeout(retryTimer); clearTimeout(loadTimer); retryT
 function placeView() {
   if (!view || !win || win.isDestroyed()) return;
   const [width, height] = win.getContentSize();
-  view.setBounds({x: 0, y: win.isFullScreen() ? 0 : 32, width, height: Math.max(0, height - (win.isFullScreen() ? 0 : 32))});
+  const previewWidth = state.phase === 'appearance' && viewLoaded ? Math.max(0, width - 380) : width;
+  view.setBounds({x: 0, y: win.isFullScreen() ? 0 : 32, width: previewWidth, height: Math.max(0, height - (win.isFullScreen() ? 0 : 32))});
 }
 function showWindow() { if (!win) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
-function hideView() { if (view) view.setVisible(false); }
+function updatePlayback() {backgroundSync?.refresh();}
+function hideView() {remoteVisible = false; if (view) view.setVisible(false); updatePlayback();}
+function syncRemoteVisibility() {
+  remoteVisible = ['ready', 'appearance'].includes(state.phase) && !state.bootPlaying && viewLoaded;
+  placeView();
+  if (view) view.setVisible(remoteVisible);
+  updatePlayback();
+}
+function finishBoot() {
+  clearTimeout(bootTimer);
+  if (!state.bootPlaying) return;
+  publish({bootPlaying: false}); syncRemoteVisibility();
+}
+function openAppearance() {
+  finishBoot(); hideView();
+  publish({phase: 'appearance', canBack: Boolean(view && viewLoaded)});
+  syncRemoteVisibility(); showWindow();
+}
+function backToWorkspace() {
+  if (view && !view.webContents.isDestroyed() && viewLoaded) {
+    publish({phase: 'ready', message: '页面已加载 · 登录与连接状态见 Control UI'});
+    syncRemoteVisibility();
+  } else if (config.gateway) reconnect();
+  else {publish({phase: 'setup'}); hideView();}
+}
+function setVideo(patch) {
+  try {
+    const next = updateVideo(config.video, patch), previous = config.video;
+    config.video = next;
+    if (!save()) {config.video = previous; return {ok: false, error: '设置未能保存，请检查本地数据目录。'};}
+    publish({video: next, notice: ''});
+    if (!next.bootEnabled) finishBoot();
+    updatePlayback();
+    return {ok: true};
+  } catch (error) {return {ok: false, error: error.message};}
+}
 function openSettings() {
-  stopRetry(); hideView();
+  finishBoot(); stopRetry(); hideView();
   publish({phase: 'setup', canBack: Boolean(view && !view.webContents.isDestroyed() && viewLoaded), message: '连接设置'});
   showWindow();
 }
 function scheduleRetry(message) {
   if (state.phase === 'setup' || quitting) return;
-  stopRetry(); hideView();
+  stopRetry(); viewLoaded = false; hideView();
   const seconds = Math.min(30, 2 ** Math.min(retryCount++, 5));
+  if (state.phase === 'appearance') {publish({message, canBack: false}); return;}
   publish({phase: 'error', message: `${message} · ${seconds} 秒后重试`, canBack: false});
   retryTimer = setTimeout(loadGateway, seconds * 1000);
 }
@@ -57,7 +100,7 @@ function loadGateway() {
   }, 20000);
 }
 function makeRemote() {
-  stopThemeSync();
+  stopThemeSync(); backgroundSync?.stop();
   if (view) {
     win.contentView.removeChildView(view);
     if (!view.webContents.isDestroyed()) view.webContents.close();
@@ -85,6 +128,13 @@ function makeRemote() {
     // Local diagnostic only: no page content, tokens or addresses.
     try { fs.appendFileSync(path.join(app.getPath('userData'), 'theme-sync.log'), `${new Date().toISOString()} v${app.getVersion()} theme read failed: ${error.name}\n`); } catch {}
   });
+  backgroundSync = watchBackground(wc, () => ({
+    enabled: Boolean(config.video.backgroundEnabled) && sameOrigin(wc.getURL(), config.gateway),
+    strength: config.video.strength, url: MEDIA_URL + 'background.mp4',
+    active: remoteVisible && !state.bootPlaying && win.isVisible() && !win.isMinimized(),
+  }), status => {
+    if (view === remote && !quitting && state.backgroundStatus !== status) publish({backgroundStatus: status});
+  });
   let httpFailure = 0;
   wc.on('did-start-navigation', (_event, _url, inPlace, isMainFrame) => {if (isMainFrame && !inPlace) httpFailure = 0;});
   wc.on('did-navigate', (_event, _url, statusCode) => {if (statusCode >= 400) httpFailure = statusCode;});
@@ -104,9 +154,10 @@ function makeRemote() {
     if (!current()) return;
     if (httpFailure) { scheduleRetry(`服务器返回 HTTP ${httpFailure}`); return; }
     retryCount = 0; viewLoaded = true; stopRetry();
-    if (state.phase === 'setup') { publish({canBack: true}); return; }
-    placeView(); remote.setVisible(true);
+    if (['setup', 'appearance'].includes(state.phase)) { publish({canBack: true}); syncRemoteVisibility(); return; }
+    placeView();
     publish({phase: 'ready', message: '页面已加载 · 登录与连接状态见 Control UI', canBack: true});
+    syncRemoteVisibility();
   });
   wc.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
     if (current() && isMainFrame && code !== -3) scheduleRetry(`页面加载失败（${description}）`);
@@ -144,7 +195,8 @@ function buildTray() {
     tray.setContextMenu(Menu.buildFromTemplate([
       {label: '打开 OpenClaw', click: showWindow},
       {label: '重新连接', click: () => {showWindow(); reconnect();}},
-      {label: '连接设置', click: openSettings}, {type: 'separator'},
+      {label: '连接设置', click: openSettings},
+      {label: '视频与外观…', click: openAppearance}, {type: 'separator'},
       {label: '退出', click: () => app.quit()},
     ]));
     tray.on('click', showWindow); publish({trayAvailable: true});
@@ -159,6 +211,13 @@ else {
     if (config.gateway) { try { config.gateway = normalizeGateway(config.gateway); } catch { delete config.gateway; } }
     state.address = config.gateway || '';
     state.theme = normalizeTheme(config.theme) || DEFAULT_THEME;
+    config.video = normalizeVideo(config.video);
+    state.video = config.video; state.bootPlaying = config.video.bootEnabled;
+    state.version = app.getVersion(); state.backgroundStatus = 'waiting';
+    const mediaHandler = createMediaHandler(path.join(__dirname, '../assets/video'));
+    session.defaultSession.protocol.handle(SCHEME, mediaHandler);
+    const remoteSession = session.fromPartition('persist:control-ui');
+    remoteSession.protocol.handle(SCHEME, mediaHandler);
     win = new BrowserWindow({
       ...restoreBounds(config.window, screen.getAllDisplays()), minWidth: 720, minHeight: 520,
       show: false, title: 'OpenClaw Desktop', icon, backgroundColor: state.theme.background,
@@ -176,14 +235,14 @@ else {
       connect: (_event, address) => {try { return connect(address); } catch (error) { return {ok: false, error: error.message}; }},
       reconnect: reconnect,
       settings: openSettings,
-      back: () => { if (view && !view.webContents.isDestroyed() && state.canBack) {
-        view.setVisible(true); publish({phase: 'ready', message: '页面已加载 · 登录与连接状态见 Control UI'});
-      }},
+      appearance: openAppearance,
+      video: (_event, patch) => setVideo(patch),
+      bootDone: finishBoot,
+      back: backToWorkspace,
     })) ipcMain.handle(`desktop:${name}`, (event, ...args) => {
       if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame || event.senderFrame.url !== shellUrl) throw new Error('Untrusted sender');
       return handler(event, ...args);
     });
-    const remoteSession = require('electron').session.fromPartition('persist:control-ui');
     remoteSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     remoteSession.setPermissionCheckHandler(() => false);
     remoteSession.on('will-download', async (_event, item) => {
@@ -193,6 +252,7 @@ else {
     Menu.setApplicationMenu(Menu.buildFromTemplate([
       {label: '应用', submenu: [
         {label: '连接设置', accelerator: 'CmdOrCtrl+L', click: openSettings},
+        {label: '视频与外观…', accelerator: 'CmdOrCtrl+Shift+V', click: openAppearance},
         {label: '重新加载', accelerator: 'CmdOrCtrl+R', click: reconnect},
         {type: 'separator'}, {label: '退出', accelerator: 'CmdOrCtrl+Q', click: () => app.quit()},
       ]},
@@ -212,6 +272,9 @@ else {
         saveWindow();
       });
     }
+    for (const event of ['show', 'hide', 'minimize', 'restore']) win.on(event, () => {
+      publish({windowActive: win.isVisible() && !win.isMinimized()}); updatePlayback();
+    });
     win.on('resize', () => {placeView(); clearTimeout(saveTimer); saveTimer = setTimeout(saveWindow, 250);});
     win.on('move', () => {clearTimeout(saveTimer); saveTimer = setTimeout(saveWindow, 250);});
     win.on('close', event => {saveWindow(); if (!quitting && tray) {event.preventDefault(); win.hide();}});
@@ -219,10 +282,11 @@ else {
     win.loadURL(shellUrl).then(() => {
       if (config.window?.maximized) win.maximize();
       showWindow();
+      if (state.bootPlaying) bootTimer = setTimeout(finishBoot, 20000);
       if (config.gateway) connect(config.gateway); else publish({phase: 'setup'});
     });
   }).catch(error => {dialog.showErrorBox('OpenClaw Desktop 启动失败', error.message); app.exit(1);});
 }
 app.on('activate', showWindow);
-app.on('before-quit', () => {quitting = true; stopThemeSync(); stopRetry(); clearTimeout(saveTimer); if (configPath) saveWindow(); if (view && !view.webContents.isDestroyed()) view.webContents.close();});
+app.on('before-quit', () => {quitting = true; clearTimeout(bootTimer); backgroundSync?.stop(); stopThemeSync(); stopRetry(); clearTimeout(saveTimer); if (configPath) saveWindow(); if (view && !view.webContents.isDestroyed()) view.webContents.close();});
 app.on('window-all-closed', () => {if (quitting || !tray) app.quit();});

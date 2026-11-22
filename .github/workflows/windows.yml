@@ -27,15 +27,16 @@ jobs:
       - name: Non-GUI checks
         shell: pwsh
         run: |
-          node --check src/main.cjs
-          node --check src/theme-sync.cjs
-          node --check src/theme.cjs
-          node --check src/preload.cjs
-          node --check src/shell.js
+          Get-ChildItem src -File | Where-Object { $_.Extension -in '.cjs', '.js' } | ForEach-Object {
+            node --check $_.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
           npm test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Package Windows x64 portable
         run: npm run dist:win -- --publish never
+      - name: Verify packaged media and runtime (non-GUI)
+        run: node scripts/verify-package.cjs dist/win-unpacked/resources
       - name: Create checksums and include quick-start
         shell: pwsh
         run: |

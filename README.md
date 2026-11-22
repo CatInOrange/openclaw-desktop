@@ -1,65 +1,67 @@
-# OpenClaw Desktop — 0.2.0 Preview
+# OpenClaw Desktop — 0.3.0 Preview
 
-独立的 Electron 桌面壳，直接加载你的 Gateway 提供的原版 Control UI。非官方客户端；不修改 DSH、OpenClaw Gateway 或服务器上的 UI 文件。
+独立 Electron 桌面壳，加载 Gateway 提供的原版 Control UI。非官方客户端；不修改 DSH、OpenClaw Gateway 或服务器 UI 文件。
 
-## 当前功能
+## 功能
 
-- Gateway 地址输入、校验、记忆，支持自定义 URL 路径。
-- 原版 Control UI 内登录、Token 与设备配对；浏览器数据在独立的持久化分区保存。
-- 无边框窗口、32px 精简拖动区及最小化/最大化/关闭按钮；大小/位置/最大化状态记忆、移除显示器后的窗口位置恢复。
-- 系统托盘：打开、重新连接、连接设置、退出。关闭窗口默认隐藏到托盘；托盘创建失败时关闭即退出。
-- 页面加载超时、网络加载失败、HTTP 4xx/5xx 的错误页面及退避重试（最长间隔 30 秒）。
-- Ctrl+L 连接设置、Ctrl+R 重新加载、Ctrl+Q 退出；复制粘贴、文本右键菜单、缩放和文件下载。
-- Web 页面不接触 Node 或桌面 IPC；不忽略 TLS 证书错误，不关闭 webSecurity。
-
-**明确边界：** 已移除顶部品牌、地址及连接设置横条；使用托盘菜单或 Ctrl+L 打开设置，Ctrl+R 重新加载。网页加载成功不等于 Gateway 已认证/已连接。WebSocket 的连接、登录、配对与重连状态由原版 Control UI 展示和处理；桌面壳不伪造这些状态。首版尚未接入视频背景、开机动画、桌宠、桌面任务通知或开机自启。
+- Gateway 地址、窗口位置与大小记忆；独立持久化分区保存 Control UI 自身的登录与设备身份。
+- 无边框窗口、32px 拖动区、窗口按钮、系统托盘；关闭默认隐藏到托盘，托盘菜单「退出」结束应用。
+- 标题栏由主进程每 300ms 在隔离环境读取 Control UI 的 `--bg` / `--text`，跟随实际深浅色并缓存上次配色。
+- dsh-video-skin 自带的约 8 秒有声开机动画与约 2 分钟静音循环背景；本地打包，不依赖远程下载。
+- 独立的开机动画、声音、背景开关与背景强度；外观面板旁实时预览；本机自动保存。
+- 视频失败恢复原版界面；开机动画可点击/Esc 跳过，并有首帧/总时长超时保护。不伪造 Gateway 认证或 WebSocket 连接状态。
+- HTTP 错误、页面超时和加载失败的错误页及退避重试；复制粘贴、右键菜单、缩放和文件下载。
 
 ## 使用
 
-Windows 便携版：解压下载文件（若为压缩包）后双击 `OpenClaw-Desktop-0.2.0-win-x64.exe`。此版本不需要安装 Node.js，也不需要安装 DSH；需要已有可访问的 OpenClaw Gateway。
+退出旧版本后运行 `OpenClaw-Desktop-0.3.0-win-x64.exe`，无需安装 Node.js 或 DSH，需要已有可访问的 Gateway。
 
-1. 输入 Gateway 的完整地址，如 `https://claw.example.com`、`http://127.0.0.1:18789`。自定义路径输入 `https://example.com/openclaw/`。
-2. 不要把 Token 放进地址；如有需要，在 Control UI 中粘贴 Token 并按原版流程完成配对。
-3. 关闭主窗口后从系统托盘重新打开；托盘菜单“退出”才会结束应用。
+输入完整 Gateway URL，例如 `https://claw.example.com`、`http://127.0.0.1:18789` 或自定义路径。不要把 Token 放进地址；登录和设备配对在原版 Control UI 中完成。
 
-远程连接推荐使用 HTTPS；本机可用 HTTP。只输入你信任的 Gateway 地址。麦克风、摄像头、屏幕捕获等原生权限本阶段未开放，不属于首版验证范围。
+| 入口 | 操作 |
+| --- | --- |
+| 托盘「视频与外观…」 / Ctrl+Shift+V | 外观开关和强度，旁边保留工作区预览 |
+| Ctrl+L | 连接设置，连接页也有视频设置入口 |
+| Ctrl+R | 重新加载，不重播开机动画 |
+| Ctrl+Q / 托盘「退出」 | 彻底退出应用 |
+| F11 | 全屏 |
 
-## 本地开发
+默认启用开机动画、声音、背景，强度 60%。开机设置下次启动生效，背景开关和强度即时应用。刷新、重连、托盘恢复不重播动画。最小化和隐藏到托盘时暂停视频。背景始终静音。
+
+外观面板只改本机，不修改 Gateway 偏好。主画布按主题适度透明，侧栏、菜单、输入框、弹层和设置维持原有配色。关闭背景会移除视频及全部激活的透明覆盖。视频仅完成 UI 适配，未迁移 DSH 宿主接口或安装 DSH 插件。
+
+## 本地数据与边界
+
+`app.getPath('userData')/desktop.json` 保存 Gateway 地址、窗口状态、主题缓存与视频设置，不存 Token；Control UI 自己将登录数据保存在 Chromium 持久化分区。`OPENCLAW_DESKTOP_USER_DATA` 可覆盖数据目录用于隔离测试。
+
+远程页面无 Node、preload 或原生 IPC。桌面壳通过隔离世界只读主题并添加背景 DOM，原生设置只向本地 shell 开放。`oc-video://assets/` 媒体协议仅提供两段随包 MP4，支持 GET/HEAD/Range；该资源协议可绕过页面 CSP 的媒体限制，不关闭 webSecurity，也不向其他本地文件开放访问。
+
+麦克风、摄像头和屏幕捕获权限尚未开放。桌宠、开机自启、自选视频不在当前版本范围。真实连接状态以 Control UI 为准。
+
+## 素材来源
+
+[Something11235/dsh-video-skin](https://github.com/Something11235/dsh-video-skin)，固定版本 `2f954a1d6ac6140880f1a58438ed746f2f7f3da4`，原样复用两段 MP4。来源、SHA256 和 MIT 许可随包保存在 `assets/video/NOTICE.md`、`assets/video/LICENSE.dsh-video-skin`。
+
+## 开发与验证
 
 ```sh
 npm ci
-npm start
 npm test
-# GUI 集成验证仅在用户自己的有桌面环境的机器上执行
-npm run test:integration
+npm start
 npm run dist:win
 npm run dist:linux
 ```
 
-发布版不包含 `--no-sandbox`。Windows 使用正常桌面用户运行；Linux 不支持以 root 直接运行发布应用。
+`npm test` 是纯 Node 非 GUI 测试，覆盖媒体流/范围请求、素材完整性、开关保存、播放生命周期、失败/超时、背景恢复、主进程视图布局及 IPC 边界。测试使用模型桩，不证明 Chromium/Windows 的真实视频解码或视觉兼容。
 
-## 本地数据
+Linux 不运行 GUI 或虚拟显示测试。Windows 的实际播放、声音、页面透明效果、主题切换与托盘行为由用户按 `TRY-WINDOWS.md` 验收。`npm run test:integration` 仅可在用户自己的有桌面环境的机器上运行，其历史 fixture 也不代替上述验收。
 
-Electron `app.getPath('userData')` 中保存 `desktop.json` 和 Chromium 持久化分区。`desktop.json` 仅含服务器地址和窗口状态，不含 Token；Control UI 的设备身份和登录状态由其自身在浏览器分区存储。数据目录可通过 `OPENCLAW_DESKTOP_USER_DATA` 环境变量覆盖（例如用于隔离测试）。
+## 维护
 
-更换 Gateway 时，浏览器数据按源隔离。返回同一地址时会复用已有登录信息。重置本机身份需退出应用并移走对应数据目录；不要在未确认前删除自己的登录数据。
+- `src/main.cjs`：窗口/托盘/加载/本地设置与生命周期。
+- `src/shell.*` / `src/boot.js`：本地设置面板与开机播放。
+- `src/background.cjs` / `src/background.css`：隔离背景播放与限定范围的样式覆盖。
+- `src/media.cjs`：只读媒体服务；`src/video-config.cjs`：视频配置校验。
+- `src/theme-sync.cjs`：只读主题同步；`src/policy.cjs`：URL 与窗口边界。
 
-## 结构与维护
-
-- `src/main.cjs`：窗口、WebContentsView、托盘、连接与重试、IPC 来源校验。
-- `src/shell.*`：本地连接页和窗口控制区，不参与远程聊天业务。
-- `src/preload.cjs`：仅向本地 shell 提供白名单 API，远程页面没有 preload。
-- `src/policy.cjs`：URL/导航/窗口恢复策略。
-- `test/`：策略测试，以及真实 Electron + 本地 Gateway fixture 的集成测试。
-
-UI 页面正常加载并不证明所有 Control UI 子功能均已兼容 Electron。真实 Gateway 配对、Windows 托盘呈现、下载体验和安装包运行仍需目标机实测。集成 fixture 不代替这些验证。
-
-## 当前验证状态
-
-3 项非 GUI 策略测试通过。虚拟显示集成尝试在截图阶段失败，未完成其余验证，不计为通过。后续不在构建机器上做 GUI 操作，窗口、托盘、真实 Gateway 登录和聊天由用户按 `TRY-WINDOWS.md` 验证。
-
-### 标题栏主题联动（v0.2.1）
-
-标题栏读取 Control UI 根元素的 `--bg` / `--text` 配色，由主进程每 300ms 在隔离环境读取实际配色，并缓存最后配色用于下次启动。不修改 Control UI 文件，也不向远程页面暴露任何原生 API。
-
-视频或透明皮肤可在根元素定义 `--desktop-titlebar-bg` / `--desktop-titlebar-text`，优先于默认页面配色。请使用不透明 RGB 颜色；不采样视频画面。页面首次加载之前使用缓存配色；连接设置页主体仍使用桌面壳原有深色设计。
+后续皮肤可在根元素设置 `--desktop-titlebar-bg` / `--desktop-titlebar-text`，优先于页面默认配色。视频或透明皮肤建议提供稳定的不透明颜色，不采样逐帧视频颜色。

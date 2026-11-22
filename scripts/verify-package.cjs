@@ -21,11 +21,11 @@ for (const [file, hash] of [['boot.mp4', 'e95b45d08d6bdbb0b42f97dc3bcb3891debd27
 }
 console.log(`v${expectedVersion}: packaged scripts, styles, licenses and both video checksums verified (non-GUI)`);
 
-for (const name of ['idle','thinking','working','result','waiting','success','error','idle-cube','idle-juggle','idle-swing']) {
- const relative = `assets/pet/${name}.webm`;
+for (const file of Object.keys(require('../assets/pet/SHA256.json'))) {
+ const relative = `assets/pet/${file}`;
  assert.equal(statFile(archive, path.normalize(relative)).unpacked, true);
  const data = fs.readFileSync(path.join(resources, 'app.asar.unpacked', relative));
- assert.equal(createHash('sha256').update(data).digest('hex'),require('../assets/pet/SHA256.json')[name+'.webm']);
+ assert.equal(createHash('sha256').update(data).digest('hex'),require('../assets/pet/SHA256.json')[file]);
 }
 for (const name of ['pet-window.cjs','pet-observer.cjs','pet-state.cjs','pet-preload.cjs','pet.html','pet.js','pet.css']) assert.ok(extractFile(archive,path.normalize('src/'+name)).length);
 assert.ok(extractFile(archive,path.normalize('assets/pet/NOTICE.md')).length);

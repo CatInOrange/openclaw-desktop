@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {EventEmitter}=require('node:events');
 const {createPetWindow}=require('../src/pet-window.cjs');
 function harness(config={}){
- const handlers=new Map(),windows=[];let saves=0,opened=[];
+ const handlers=new Map(),windows=[];let saves=0,opened=[],menu;
  class FakeWindow extends EventEmitter{
   constructor(opts){super();this.opts=opts;this.bounds={x:opts.x,y:opts.y,width:opts.width,height:opts.height};this.visible=false;this.dead=false;this.sent=[];this.webContents=new EventEmitter();this.webContents.mainFrame={};this.webContents.setWindowOpenHandler=fn=>{this.openHandler=fn;};this.webContents.send=(...args)=>this.sent.push(args);windows.push(this);}
   loadURL(url){this.webContents.mainFrame.url=url;return Promise.resolve();}
@@ -14,10 +14,10 @@ function harness(config={}){
  }
  const ipcMain={handle:(k,v)=>handlers.set(k,v),removeHandler:k=>handlers.delete(k)};
  const area={x:0,y:0,width:1000,height:800};
- const pet=createPetWindow({BrowserWindow:FakeWindow,ipcMain,screen:{getPrimaryDisplay:()=>({workArea:area}),getDisplayMatching:()=>({workArea:area})},config,save:()=>saves++,openSession:k=>opened.push(k)});
+ const pet=createPetWindow({BrowserWindow:FakeWindow,ipcMain,Menu:{buildFromTemplate:items=>{menu=items;return {popup(){}};}},screen:{getPrimaryDisplay:()=>({workArea:area}),getDisplayMatching:()=>({workArea:area})},config,save:()=>saves++,openSession:k=>opened.push(k)});
  const win=windows[0];
  const command=(name,value,event={sender:win.webContents,senderFrame:win.webContents.mainFrame})=>handlers.get('pet:command')(event,name,value);
- return {pet,win,command,handlers,opened,config,saves:()=>saves};
+ return {pet,win,menu:()=>menu,command,handlers,opened,config,saves:()=>saves};
 }
 test('pet IPC refuses other senders, child frames and arbitrary page URLs',async()=>{
  const h=harness();await Promise.resolve();
@@ -46,3 +46,11 @@ test('session navigation only accepts admitted session keys',async()=>{
 });
 
 test('old default migrates to the upstream 462 by 260 stage',()=>{const h=harness({pet:{size:190}});assert.equal(h.win.opts.width,462);assert.equal(h.win.opts.height,260);h.pet.stop();});
+
+test('right click exposes work status and roaming without changing visibility',()=>{
+ const h=harness();h.win.webContents.emit('context-menu');
+ const menu=h.menu();assert.ok(menu.find(item=>item.label==='OpenClaw 工作状态'));
+ menu.find(item=>item.label==='OpenClaw 工作状态').click();assert.equal(h.win.sent.at(-1)[1].expanded,true);
+ menu.find(item=>item.label==='空闲时走动').click({checked:false});assert.equal(h.config.pet.roaming,false);
+ h.pet.stop();
+});

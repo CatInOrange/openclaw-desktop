@@ -289,7 +289,7 @@ else {
         {role: 'togglefullscreen'},
       ]},
     ]));
-    petWindow = createPetWindow({BrowserWindow, ipcMain, screen, config, save, openSession: key => {
+    petWindow = createPetWindow({BrowserWindow, ipcMain, Menu, screen, config, save, openSession: key => {
       if (!config.gateway || !view || view.webContents.isDestroyed()) return;
       const target = new URL(config.gateway); target.searchParams.set('session', key);
       view.webContents.loadURL(target.href).catch(() => {}); showWindow();

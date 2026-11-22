@@ -1,4 +1,5 @@
 'use strict';
+(() => {
 const video=document.querySelector('video'),badge=document.querySelector('#badge'),card=document.querySelector('#card');
 const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
 let action='',drag=null,opened=false;
@@ -31,3 +32,5 @@ document.addEventListener('pointermove',e=>{
  window.pet.command('hit',hit);
 });
 document.addEventListener('pointerleave',()=>{if(!drag&&!opened)window.pet.command('hit',false);});
+
+})();

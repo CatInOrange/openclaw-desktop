@@ -11,8 +11,8 @@ android {
         applicationId = "dev.openclaw.mobile"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
         testInstrumentationRunner = "android.test.InstrumentationTestRunner"
     }
     val signingValues = listOf("ANDROID_RELEASE_KEYSTORE", "ANDROID_RELEASE_STORE_PASSWORD", "ANDROID_RELEASE_KEY_PASSWORD", "ANDROID_RELEASE_KEY_ALIAS").map(System::getenv)

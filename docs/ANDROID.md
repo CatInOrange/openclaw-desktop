@@ -1,11 +1,11 @@
-# OpenClaw Android 0.1.0 — 连接版
+# OpenClaw Android 0.1.1 — 连接版
 
 这是独立 Android 原生壳，使用系统 WebView 加载现有 Gateway Control UI。它不是 Electron APK，也不包含 Windows 的 Node 运行时、视频壁纸或桌宠大素材。
 
 ## 安装与连接
 
 - Android 9（API28）及以上，设备需要可用且较新的系统 WebView。
-- 安装 `OpenClaw-Android-0.1.0.apk`，按系统要求允许此来源安装。
+- 安装 `OpenClaw-Android-0.1.1.apk`，按系统要求允许此来源安装。
 - 输入手机能访问的 Gateway 地址。手机的 `127.0.0.1` 是手机本身，不是电脑；请使用手机可达的 LAN/VPN/HTTPS 地址。
 - 优先使用有效证书的 HTTPS。HTTP 可以由用户明确配置，但 WebCrypto/设备身份等能力受安全上下文限制，不能保证在明文地址下完成认证。
 - 登录、设备配对和模型/会话功能仍由原版 Control UI 提供，不修改 Gateway，不把 Token 放入入口地址。

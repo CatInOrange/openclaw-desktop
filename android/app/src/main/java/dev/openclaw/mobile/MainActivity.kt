@@ -68,6 +68,11 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (java.io.File(filesDir, "last-crash.txt").exists()) {
+            startActivity(Intent(this, DiagnosticsActivity::class.java))
+            finish()
+            return
+        }
         createNativeUi()
         if (Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT) { navigateBack() }
@@ -397,7 +402,7 @@ class MainActivity : Activity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        root.requestApplyInsets()
+        if (::root.isInitialized) root.requestApplyInsets()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         browser?.let { web ->

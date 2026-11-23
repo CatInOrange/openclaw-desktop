@@ -30,3 +30,11 @@ html[data-oc-enter] body{animation:oc-desktop-enter 520ms ease-out both}
    they become bright/dark strips; remove only these decorative pseudo-elements. */
 html[data-oc-video="on"] .shell:not(.shell--settings) .chat-main__conversation::before,
 html[data-oc-video="on"] .shell:not(.shell--settings) .chat-footer::before{content:none!important;display:none!important}
+
+/* New Control UI mobile chat has its own opaque canvas below .shell. Keep
+   sheets, composer and menus opaque; only reveal the underlying wallpaper
+   through the ordinary transcript containers (also while a sheet is open). */
+html[data-oc-video="on"] .shell:not(.shell--settings) .sidebar-region.sidebar-region--mobile-host:not(.sidebar-region--expanded):not(.sidebar-region--expanded-side),
+html[data-oc-video="on"] .shell:not(.shell--settings) .sidebar-region--mobile-host[data-mobile-open] > .sidebar-region__primary{
+  background:transparent!important;
+}

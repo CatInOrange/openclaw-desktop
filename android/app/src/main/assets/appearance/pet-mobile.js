@@ -17,7 +17,7 @@
     ui=host.attachShadow({mode:'closed'});
     const css=document.createElement('style');css.textContent=`
       :host{font:13px system-ui;color-scheme:light dark}button{font:inherit;color:inherit;border:0;background:transparent;min-width:36px;min-height:36px;border-radius:12px;cursor:pointer}button:focus-visible{outline:2px solid #7b93d5}button:active{background:#8883}
-      .pet{position:relative;pointer-events:auto;width:112px;height:68px;touch-action:none;user-select:none;background:transparent;border:0;padding:0;overflow:hidden}.pet video{width:176px;height:99px;position:absolute;left:-32px;top:-15px;pointer-events:none}.pet.unknown video{opacity:.45;filter:grayscale(1)}.pet small{position:absolute;right:7px;bottom:0;background:light-dark(#fffc,#17212ee8);border-radius:8px;padding:1px 4px;font-size:10px}
+      .pet{position:relative;pointer-events:auto;width:112px;height:68px;touch-action:none;user-select:none;background:transparent;border:0;padding:0;overflow:hidden}.pet video{width:176px;height:99px;position:absolute;left:-32px;top:-15px;pointer-events:none}.pet.keyboard{width:76px;height:48px}.pet.keyboard video{width:117px;height:66px;left:-21px;top:-9px}.pet.keyboard small{right:3px;font-size:9px}.pet.unknown video{opacity:.45;filter:grayscale(1)}.pet small{position:absolute;right:7px;bottom:0;background:light-dark(#fffc,#17212ee8);border-radius:8px;padding:1px 4px;font-size:10px}
       .tools{pointer-events:auto;text-align:right}.card{pointer-events:auto;position:absolute;right:8px;bottom:100%;width:min(280px,calc(100vw - 32px));max-height:40vh;overflow:auto;background:light-dark(#fffffff5,#17212ef5);box-shadow:0 4px 24px #0004;border:1px solid #8885;border-radius:16px;padding:12px;backdrop-filter:blur(12px)}.card p{margin:0 0 6px;overflow-wrap:anywhere}.rows button{display:block;text-align:left;width:100%;overflow-wrap:anywhere} [hidden]{display:none!important}
     `;ui.append(css);
     card=document.createElement('section');card.className='card';card.hidden=true;card.setAttribute('aria-label','小宠工作状态');
@@ -49,7 +49,8 @@
     mount();host.hidden=false;
     const keyboard=settings.keyboardVisible || ((window.visualViewport?.height||innerHeight)<innerHeight*0.72);
     if(keyboard)opened=false;
-    const small=collapsed||keyboard;
+    const small=collapsed;
+    video.parentNode.classList.toggle('keyboard',Boolean(keyboard));
     handle.hidden=!small;video.parentNode.hidden=small;ui.querySelector('.tools').hidden=small;
     card.hidden=!opened||small;
     const s=summarizePetState(state);const unknown=['unknown','offline'].includes(s.action);

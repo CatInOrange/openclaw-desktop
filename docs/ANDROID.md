@@ -133,3 +133,7 @@ MAIN world 只收集归一化工作事实；隔离脚本经本机原生设置的
 
 真机验收：开启/关闭、后台恢复、键盘避让、拖动收起、深浅色、点击会话跳转、透明 WebM 动画与播放失败降级、多 Agent 与授权/断线状态。
 此版本未在构建机做 GUI/模拟器测试。
+
+### 0.2.3 canvas/keyboard compatibility
+
+Current Control UI mobile-host transcript containers now have an opaque background; the shared wallpaper style reveals only these canvases, not sheets, menus, composer or settings. The keyboard now shrinks the pet to 76×48 instead of replacing it with a dot; explicit manual collapse still works. Native dialogs / browser top-layer menus may cover the pet while open, intentionally: it must not block their controls. The pet reappears on the underlying page after dismissal. Cloud non-GUI checks do not constitute phone visual acceptance.

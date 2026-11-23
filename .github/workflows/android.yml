@@ -113,11 +113,11 @@ jobs:
         run: |
           python scripts/verify-android-apk.py android/app/build/outputs/apk/release/app-release.apk --build-tools "$ANDROID_HOME/build-tools/36.0.0"
           mkdir -p dist/android
-          cp android/app/build/outputs/apk/release/app-release.apk dist/android/OpenClaw-Android-0.2.3.apk
+          cp android/app/build/outputs/apk/release/app-release.apk dist/android/OpenClaw-Android-0.2.4.apk
           cp shared/android-signing-certificate.sha256 dist/android/SIGNING-CERT-SHA256.txt
           cp docs/ANDROID.md dist/android/ANDROID.md
           cd dist/android
-          sha256sum OpenClaw-Android-0.2.3.apk > SHA256SUMS
+          sha256sum OpenClaw-Android-0.2.4.apk > SHA256SUMS
       - name: Publish versioned APK and update manifest to COS
         if: github.event_name == 'workflow_dispatch' && inputs.publish
         env:

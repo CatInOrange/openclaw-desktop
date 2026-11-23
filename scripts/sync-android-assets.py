@@ -42,6 +42,6 @@ observer = (root / 'src/pet-observer.cjs').read_text().split('function watchPetG
 state = (root / 'src/pet-state.cjs').read_text().split('module.exports =')[0]
 (extension / 'pet-state.js').write_text(state)
 clips = {name: 'data:video/webm;base64,' + base64.b64encode((root / 'assets/pet' / (name + '.webm')).read_bytes()).decode('ascii')
-         for name in ['idle', 'thinking', 'working', 'result', 'waiting', 'success', 'error']}
+         for name in ['idle', 'idle-cube', 'idle-juggle', 'idle-swing', 'idle-walk', 'thinking', 'working', 'result', 'waiting', 'success', 'error']}
 (extension / 'pet-media.js').write_text("'use strict';\nconst PET_MEDIA = " + json.dumps(clips) + ";\nbrowser.runtime.onMessage.addListener((m,s) => { if (s.id === browser.runtime.id && s.frameId === 0 && m?.type === 'pet-media' && Object.hasOwn(PET_MEDIA,m.name)) return Promise.resolve({url:PET_MEDIA[m.name]}); });\n")
 shutil.copyfile(root / 'assets/pet/NOTICE.md', extension / 'PET-NOTICE.md')

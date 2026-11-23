@@ -6,6 +6,8 @@
   let host, ui, video, label, rows, handle, card, action='', mediaEpoch=0, drag;
   let notice='', position=0.55;
   const media = new Map();
+  const idlePool=['idle','idle-cube','idle-juggle','idle-swing','idle-walk'];
+  let confirmedIdle=false, rotationActive=false;
   const names={offline:'连接中断',unknown:'状态待确认',idle:'空闲',thinking:'正在响应',working:'执行工具',result:'整理结果',waiting:'等待批准',success:'已完成',error:'运行异常'};
   function button(text, title, handler) {
     const b=document.createElement('button');b.textContent=text;b.title=title;b.setAttribute('aria-label',title);b.onclick=handler;return b;
@@ -31,14 +33,20 @@
     pet.onpointermove=e=>{if(!drag)return;if(Math.abs(e.clientY-drag.start)>6)drag.moved=true;if(drag.moved){const h=window.visualViewport?.height||innerHeight;position=Math.max(.15,Math.min(.85,position+(e.clientY-drag.y)/h));host.style.top=(position*100)+'%';drag.y=e.clientY;}};
     pet.onpointerup=()=>{if(drag&&!drag.moved)opened=!opened;drag=null;render();};pet.onpointercancel=()=>{drag=null;};
     pet.onclick=e=>{if(e.detail===0){opened=!opened;render();}};
+    video.onended=()=>{
+      if(!confirmedIdle||!rotationActive||document.hidden)return;
+      const pool=idlePool.filter(name=>name!==action);
+      animate(pool[Math.floor(Math.random()*pool.length)],true);
+    };
     video.onerror=()=>{hint.textContent='动画不可用';};
     document.documentElement.append(host);
   }
   async function animate(next, active) {
+    rotationActive=Boolean(active);
     if (!video) return;
     if (!active) {mediaEpoch++;video.pause();action='';return;}
     if (action===next) {video.play().catch(()=>{});return;}
-    action=next;const epoch=++mediaEpoch;
+    action=next;video.loop=!(confirmedIdle&&idlePool.includes(next));const epoch=++mediaEpoch;
     try {
       if (!media.has(next)) {const r=await browser.runtime.sendMessage({type:'pet-media',name:next});if(!r?.url?.startsWith('data:video/webm;base64,'))throw Error();media.set(next,r.url);}
       if(epoch!==mediaEpoch)return;video.src=media.get(next);video.play().catch(()=>{video.parentNode.querySelector('small').textContent='点开查看状态';});
@@ -65,7 +73,10 @@
         location.assign(url.href);
       }));
     }
-    animate(unknown?'idle':s.action,!small && settings.active && !document.hidden);
+    confirmedIdle=s.action==='idle'&&s.connected===true&&s.complete===true;
+    const next=confirmedIdle&&idlePool.includes(action)?action:unknown?'idle':s.action;
+    video.loop=!(confirmedIdle&&idlePool.includes(next));
+    animate(next,!small && settings.active && !document.hidden);
   }
   globalThis.ocApplyPetSettings=value=>{
     settings=value||{};const next=Boolean(settings.allowed&&settings.petEnabled&&settings.active&&!document.hidden);

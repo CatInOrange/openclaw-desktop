@@ -45,7 +45,7 @@ def main():
             with urllib.request.urlopen(endpoint, timeout=30) as response:
                 assert json.load(response) == manifest
             stage = "anonymous-apk-read"
-            request = urllib.request.Request(manifest['apkUrl'], headers={'Range': 'bytes=0-31', 'User-Agent': 'OpenClaw-Android/0.2.3', 'Cache-Control': 'no-cache'})
+            request = urllib.request.Request(manifest['apkUrl'], headers={'Range': 'bytes=0-31', 'User-Agent': 'OpenClaw-Android/0.2.4', 'Cache-Control': 'no-cache'})
             with urllib.request.urlopen(request, timeout=30) as response:
                 assert response.read(4) == b'PK\x03\x04'
             break

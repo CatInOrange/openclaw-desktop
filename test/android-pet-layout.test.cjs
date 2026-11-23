@@ -16,10 +16,12 @@ function fixture(){
     play(){this.playing=true;return Promise.resolve();} pause(){this.playing=false;}
   }
   const events={},document={hidden:false,createElement:tag=>new Element(tag),documentElement:new Element('html'),addEventListener:(name,fn)=>events[name]=fn};
+  const summary={action:'idle',sessions:[],connected:true,complete:true};
+  const requested=[];
   const context={document,innerHeight:800,location:{origin:'https://example.test'},window:{postMessage(){},addEventListener(){},visualViewport:{height:800,addEventListener(){}}},
-    createPetState:()=>({}),summarizePetState:()=>({action:'idle',sessions:[]}),applyPetEvent(){},browser:{runtime:{sendMessage:async()=>({url:'data:video/webm;base64,YQ=='})}}};
+    createPetState:()=>({}),summarizePetState:()=>summary,applyPetEvent(){},browser:{runtime:{sendMessage:async m=>{requested.push(m.name);return {url:'data:video/webm;base64,YQ=='};}}}};
   vm.runInNewContext(fs.readFileSync(path.join(root,'android/app/src/main/assets/appearance/pet-mobile.js'),'utf8'),context);
-  return {context,nodes,events,document,pet:()=>nodes.find(n=>n.className==='pet'),video:()=>nodes.find(n=>n.tag==='video'),host:()=>nodes.find(n=>n.id==='oc-mobile-pet')};
+  return {context,nodes,events,document,summary,requested,pet:()=>nodes.find(n=>n.className==='pet'),video:()=>nodes.find(n=>n.tag==='video'),host:()=>nodes.find(n=>n.id==='oc-mobile-pet')};
 }
 test('keyboard retains a miniature pet, manual collapse survives, and background pauses',async()=>{
   const f=fixture();const settings={allowed:true,petEnabled:true,active:true,keyboardVisible:false};
@@ -42,4 +44,17 @@ test('mobile wallpaper compatibility targets only transcript canvases, never eve
   assert.match(compatibility,/\.sidebar-region\.sidebar-region--mobile-host:not\(\.sidebar-region--expanded\):not\(\.sidebar-region--expanded-side\)/);
   assert.match(compatibility,/\[data-mobile-open\] > \.sidebar-region__primary/);
   assert.doesNotMatch(compatibility,/\*|\.chat-mobile-host\s*[,\{]|\.chat-composer\s*[,\{]/);
+});
+
+test('idle rotation yields to work and stops in background or unknown state',async()=>{
+ const f=fixture(),settings={allowed:true,petEnabled:true,active:true};
+ f.context.ocApplyPetSettings(settings);await new Promise(setImmediate);
+ assert.equal(f.video().loop,false);
+ f.video().onended();await new Promise(setImmediate);
+ assert.ok(['idle-cube','idle-juggle','idle-swing','idle-walk'].includes(f.requested.at(-1)));
+ f.summary.action='working';f.context.ocApplyPetSettings(settings);await new Promise(setImmediate);
+ assert.equal(f.requested.at(-1),'working');assert.equal(f.video().loop,true);
+ const count=f.requested.length;f.video().onended();await new Promise(setImmediate);assert.equal(f.requested.length,count);
+ f.summary.action='idle';f.summary.complete=false;f.context.ocApplyPetSettings(settings);await new Promise(setImmediate);assert.equal(f.video().loop,true);
+ f.context.ocApplyPetSettings({...settings,active:false});f.video().onended();await new Promise(setImmediate);assert.equal(f.video().playing,false);
 });

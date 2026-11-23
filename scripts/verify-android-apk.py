@@ -5,7 +5,7 @@ from pathlib import Path
 parser=argparse.ArgumentParser()
 parser.add_argument('apk',type=Path)
 parser.add_argument('--build-tools',type=Path,required=True)
-parser.add_argument('--expected-version',default='0.2.3')
+parser.add_argument('--expected-version',default='0.2.4')
 args=parser.parse_args()
 root=Path(__file__).resolve().parent.parent
 apk=args.apk.resolve()
@@ -47,7 +47,7 @@ with zipfile.ZipFile(apk) as archive:
         assert 'assets/appearance/' + required in names, 'Missing local appearance resource: ' + required
     pet_script = archive.read('assets/appearance/pet-media.js').decode()
     clips = json.JSONDecoder().raw_decode(pet_script.split('const PET_MEDIA = ',1)[1])[0]
-    assert set(clips) == {'idle','thinking','working','result','waiting','success','error'}
+    assert set(clips) == {'idle','idle-cube','idle-juggle','idle-swing','idle-walk','thinking','working','result','waiting','success','error'}
     for action, data in clips.items():
         assert hashlib.sha256(base64.b64decode(data.split(',',1)[1],validate=True)).digest() == hashlib.sha256((root/'assets/pet'/f'{action}.webm').read_bytes()).digest(), 'Pet media differs from licensed source'
     assert 'lib/arm64-v8a/libxul.so'  in names,'Bundled Gecko engine missing'

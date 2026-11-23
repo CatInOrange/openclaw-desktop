@@ -19,6 +19,7 @@ import java.util.concurrent.Executors
 class UpdateActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var action: Button
+    private lateinit var downloadProgress: android.widget.ProgressBar
     private val worker = Executors.newSingleThreadExecutor()
     private val apk by lazy { File(cacheDir, "updates/update.apk") }
     private var release: UpdatePolicy.Release? = null
@@ -30,6 +31,8 @@ class UpdateActivity : Activity() {
         body.addView(TextView(this).apply { text = "应用更新"; textSize = 24f })
         status = TextView(this).apply { text = "当前版本 ${BuildConfig.VERSION_NAME}"; textSize = 16f }
         body.addView(status)
+        downloadProgress = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; visibility = android.view.View.GONE }
+        body.addView(downloadProgress)
         action = Button(this).apply { text = "检查更新"; setOnClickListener { check() } }
         body.addView(action)
         body.addView(Button(this).apply { text = "返回"; setOnClickListener { finish() } })
@@ -89,7 +92,21 @@ class UpdateActivity : Activity() {
             verified = false
             try {
                 val expected = next.sha256 ?: UpdatePolicy.checksum(text(next.sums), next.name)
-                fetch(next.apk, UpdatePolicy.MAX_APK) { input -> apk.outputStream().use { input.copyTo(it) } }
+                ui { downloadProgress.visibility = android.view.View.VISIBLE; downloadProgress.progress = 0 }
+                fetch(next.apk, UpdatePolicy.MAX_APK) { input -> apk.outputStream().use { output ->
+                    val buffer = ByteArray(65536); var total = 0L; var lastUpdate = 0L
+                    while (true) {
+                        val count = input.read(buffer); if (count < 0) break
+                        output.write(buffer, 0, count); total += count
+                        val now = System.currentTimeMillis()
+                        if (now - lastUpdate >= 150 || total == next.size) {
+                            lastUpdate = now
+                            val received = total; val percent = (received * 100 / next.size).coerceIn(0, 100).toInt()
+                            ui { downloadProgress.progress = percent; status.text = "正在下载 ${next.version} · $percent%\n${"%.1f".format(received / 1048576.0)} / ${"%.1f".format(next.size / 1048576.0)} MB" }
+                        }
+                    }
+                } }
+                ui { downloadProgress.progress = 100; status.text = "下载完成，正在校验文件和签名…" }
                 require(apk.length() == next.size) { "APK 下载不完整" }
                 val digest = apk.inputStream().use { input ->
                     val hash = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(65536)

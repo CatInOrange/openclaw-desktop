@@ -11,8 +11,8 @@ android {
         minSdk = 28
         targetSdk = 35
         ndk { abiFilters += listOf("arm64-v8a") }
-        versionCode = 10
-        versionName = "0.1.9"
+        versionCode = 11
+        versionName = "0.2.0"
         val updateUrl = System.getenv("ANDROID_UPDATE_MANIFEST_URL") ?: ""
         val escapedUrl = updateUrl.replace("\\", "\\\\").replace("\"", "\\\"")
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"$escapedUrl\"")
@@ -42,6 +42,7 @@ android {
 }
 
 dependencies {
+    implementation("com.google.zxing:core:3.5.3")
     implementation("org.mozilla.geckoview:geckoview:160.0.20261116130455")
     implementation("androidx.core:core:1.15.0")
     testImplementation("junit:junit:4.13.2")

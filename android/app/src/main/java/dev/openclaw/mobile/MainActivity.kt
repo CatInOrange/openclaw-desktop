@@ -47,6 +47,7 @@ class MainActivity : Activity() {
     private lateinit var progress: ProgressBar
     private lateinit var subtitle: TextView
     private var bootVideo: BootVideo? = null
+    private var musicPanel: MusicPanel? = null
     private var foregroundActive = false
     private var wallpaperStatus = "等待页面扩展连接"
     private val appearance by lazy { getSharedPreferences("appearance", MODE_PRIVATE) }
@@ -134,6 +135,7 @@ class MainActivity : Activity() {
         toolbar.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         toolbar.addView(Button(this).apply { text = "设置"; textSize = 13f; setOnClickListener { showSettings() } }, LinearLayout.LayoutParams(dp(68), dp(46)))
         root.addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)))
+        musicPanel = MusicPanel(this, root)
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; visibility = View.GONE }
         root.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)))
         content = FrameLayout(this)
@@ -497,13 +499,14 @@ class MainActivity : Activity() {
         outState.putString("pageUrl", lastInternalUrl)
         super.onSaveInstanceState(outState)
     }
-    override fun onPause() { foregroundActive = false; bootVideo?.setForeground(false); session?.setActive(false); super.onPause() }
-    override fun onResume() { super.onResume(); foregroundActive = true; bootVideo?.setForeground(true); session?.setActive(bootVideo == null) }
+    override fun onPause() { musicPanel?.pause(); foregroundActive = false; bootVideo?.setForeground(false); session?.setActive(false); super.onPause() }
+    override fun onResume() { super.onResume(); musicPanel?.resume(); foregroundActive = true; bootVideo?.setForeground(true); session?.setActive(bootVideo == null) }
     @Deprecated("Platform back navigation retains browser history")
     override fun onBackPressed() { navigateBack() }
     private fun navigateBack() { if (bootVideo != null) return; if (canGoBack) session?.goBack() else finish() }
     override fun onDestroy() {
         foregroundActive = false
+        musicPanel?.destroy()
         bootVideo?.finishVideo()
         cancelFilePrompt()
         documentExecutor.shutdown()

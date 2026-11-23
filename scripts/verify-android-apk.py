@@ -5,7 +5,7 @@ from pathlib import Path
 parser=argparse.ArgumentParser()
 parser.add_argument('apk',type=Path)
 parser.add_argument('--build-tools',type=Path,required=True)
-parser.add_argument('--expected-version',default='0.1.9')
+parser.add_argument('--expected-version',default='0.2.0')
 args=parser.parse_args()
 root=Path(__file__).resolve().parent.parent
 apk=args.apk.resolve()

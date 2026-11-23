@@ -34,6 +34,7 @@ class MusicService : Service() {
     private var player: MediaPlayer? = null
     @Volatile private var ready = false
     @Volatile private var alive = true
+    @Volatile private var pauseEpoch = 0L
     @Volatile private var generation = 0L
     private var loginGeneration = 0L
     @Volatile private var failures = 0
@@ -45,9 +46,9 @@ class MusicService : Service() {
     private val liked = mutableSetOf<Long>()
     private val attributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()
     private val focus by lazy { AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(attributes).setOnAudioFocusChangeListener({ change ->
-        if (change != AudioManager.AUDIOFOCUS_GAIN) command("pause")
+        if (change != AudioManager.AUDIOFOCUS_GAIN) interruptPlayback()
     }, main).build() }
-    private val noisy = object : BroadcastReceiver() { override fun onReceive(context: Context, intent: Intent) { command("pause") } }
+    private val noisy = object : BroadcastReceiver() { override fun onReceive(context: Context, intent: Intent) { interruptPlayback() } }
 
     override fun onCreate() {
         super.onCreate(); state = State(); vault = MusicVault(this); api.cookie = vault.load()
@@ -56,7 +57,7 @@ class MusicService : Service() {
         media = MediaSession(this, "OpenClaw music").apply {
             setCallback(object : MediaSession.Callback() {
                 override fun onPlay() { foreground(); command("play") }
-                override fun onPause() { command("pause") }
+                override fun onPause() { interruptPlayback() }
                 override fun onSkipToNext() { foreground(); command("next") }
                 override fun onStop() { stopSelf() }
             }); isActive = true
@@ -69,6 +70,7 @@ class MusicService : Service() {
         val action = intent?.action ?: "state"
         if (action in listOf("toggle", "play", "next")) foreground()
         if (action == "stop") { stopSelf(); return START_NOT_STICKY }
+        if (action == "pause") { interruptPlayback(); return START_NOT_STICKY }
         command(action, intent?.getStringExtra("phone").orEmpty(), intent?.getStringExtra("code").orEmpty(), intent?.getLongExtra("trackId", 0) ?: 0)
         return START_NOT_STICKY
     }
@@ -79,8 +81,9 @@ class MusicService : Service() {
     }
     private fun command(action: String, phone: String = "", code: String = "", target: Long = state.id) {
         if (!alive) return
+        val epoch = pauseEpoch
         worker.execute {
-            if (!alive) return@execute
+            if (!alive || (action in listOf("toggle", "play", "next") && epoch != pauseEpoch)) return@execute
             emit(state.copy(busy = true))
             try {
                 when (action) {
@@ -116,7 +119,7 @@ class MusicService : Service() {
                     }
                 }
             } catch (error: Exception) {
-                if (api.cookie.isEmpty()) { authenticated = false; vault.clear() }
+                if (api.cookie.isEmpty()) { authenticated = false; vault.clear(); pause() }
                 if (action in listOf("toggle", "play", "next")) pause()
                 // Only our own fixed messages, never upstream URLs/cookies/errors.
                 val message = if (error is IllegalArgumentException || error is IllegalStateException) error.message?.takeIf { it.any { c -> c.code > 127 } } else null
@@ -143,6 +146,7 @@ class MusicService : Service() {
         authenticated = true; emit(state.copy(authenticated = true, qr = "", message = "已连接网易云 · 心动模式")); return true
     }
     private fun acceptLogin(result: JSONObject) {
+        if (!alive) return
         val cookie = result.optString("sessionCookie")
         check(cookie.contains("MUSIC_U=")) { "登录未返回会话，请重新登录" }
         api.cookie = cookie; loginGeneration++
@@ -186,19 +190,22 @@ class MusicService : Service() {
         check(!queue.isEmpty()) { "暂时没有心动推荐，请稍后重试" }
     }
     private fun next() {
+        val epoch = pauseEpoch
         val token = ++generation
         ready = false; main.post { player?.release(); player = null }
         emit(state.copy(playing = false, message = "正在准备下一首…"))
         repeat(8) {
             if (queue.isEmpty()) fill()
             val song = queue.removeFirst(); val id = song.getLong("id")
+            val info = if (song.optString("name").isBlank()) request("/api/v3/song/detail", JSONObject().put("c", "[{\"id\":$id}]"), true).optJSONArray("songs")?.optJSONObject(0) ?: song else song
             val result = request("/api/song/enhance/player/url", JSONObject().put("ids", "[\"$id\"]").put("br", 128000)).optJSONArray("data")?.optJSONObject(0)
             val raw = result?.optString("url").orEmpty()
             if (result == null || result.optInt("code") != 200 || !result.isNull("freeTrialInfo") || raw.isEmpty()) return@repeat
             val url = android.net.Uri.parse(raw)
             if (url.scheme !in listOf("http", "https")) return@repeat
-            val artists = song.optJSONArray("ar") ?: song.optJSONArray("artists") ?: JSONArray()
-            emit(state.copy(title = song.optString("name", "未知歌曲"), artist = (0 until artists.length()).joinToString(" / ") { artists.getJSONObject(it).optString("name") }, id = id, liked = id in liked, playing = true, message = "缓冲中…"))
+            if (!alive || epoch != pauseEpoch) return
+            val artists = info.optJSONArray("ar") ?: info.optJSONArray("artists") ?: JSONArray()
+            emit(state.copy(title = info.optString("name", "未知歌曲"), artist = (0 until artists.length()).joinToString(" / ") { artists.getJSONObject(it).optString("name") }, id = id, liked = id in liked, playing = true, message = "缓冲中…"))
             main.post {
                 if (!alive || token != generation) return@post
                 foreground()
@@ -224,13 +231,17 @@ class MusicService : Service() {
             catch (_: Exception) { pause(); emit(state.copy(message = "连续歌曲播放失败，已暂停。请点击下一首重试")) }
         }
     }
+    private fun interruptPlayback() {
+        pauseEpoch++
+        pause()
+    }
     private fun pause() {
         emit(state.copy(playing = false))
         main.post { runCatching { if (ready) player?.pause() }; audio.abandonAudioFocusRequest(focus); stopForeground(STOP_FOREGROUND_DETACH) }
     }
     private fun resume() {
         emit(state.copy(playing = true, message = ""))
-        main.post { foreground(); if (audio.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) runCatching { player?.start() }.onFailure { command("pause") } else command("pause") }
+        main.post { if (!alive || !state.playing) return@post; foreground(); if (audio.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) runCatching { player?.start() }.onFailure { command("pause") } else command("pause") }
     }
     private fun pending(action: String): PendingIntent = PendingIntent.getService(this, action.hashCode(), Intent(this, MusicService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     private fun notification(): Notification = Notification.Builder(this, "music").setSmallIcon(android.R.drawable.ic_media_play)
@@ -242,6 +253,9 @@ class MusicService : Service() {
         .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "停止", pending("stop")).build())
         .setStyle(Notification.MediaStyle().setMediaSession(media.sessionToken).setShowActionsInCompactView(0, 1, 2)).build()
     private fun foreground() { if (alive) startForeground(2401, notification()) }
+    // Android 13 notification-permission exemption: this is a MediaStyle notification
+    // with an active MediaSession token, never an ordinary app notification.
+    @android.annotation.SuppressLint("NotificationPermission")
     private fun updateMedia(value: State) {
         media.setMetadata(MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE, value.title).putString(MediaMetadata.METADATA_KEY_ARTIST, value.artist).build())
         media.setPlaybackState(PlaybackState.Builder().setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_STOP)

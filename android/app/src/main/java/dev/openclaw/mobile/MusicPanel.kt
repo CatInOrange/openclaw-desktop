@@ -19,6 +19,7 @@ import java.io.File
 
 /** App-owned controls; no credentials or privileged messages enter remote Control UI. */
 internal class MusicPanel(private val activity: Activity, root: LinearLayout) {
+    private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
     private val handler = Handler(Looper.getMainLooper())
     private val title = TextView(activity).apply { textSize = 12f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(12, 0, 4, 0); setOnClickListener { show() } }
     private val play = Button(activity).apply { textSize = 12f; setOnClickListener { send("toggle"); if (!MusicService.state.authenticated) show() } }
@@ -32,9 +33,9 @@ internal class MusicPanel(private val activity: Activity, root: LinearLayout) {
     init {
         val bar = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
         bar.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
-        bar.addView(play, LinearLayout.LayoutParams(64, -2))
-        bar.addView(heart, LinearLayout.LayoutParams(58, -2))
-        bar.addView(Button(activity).apply { text = "»"; textSize = 17f; contentDescription = "下一首"; setOnClickListener { send("next") } }, LinearLayout.LayoutParams(58, -2))
+        bar.addView(play, LinearLayout.LayoutParams(dp(64), -2))
+        bar.addView(heart, LinearLayout.LayoutParams(dp(52), -2))
+        bar.addView(Button(activity).apply { text = "»"; textSize = 17f; contentDescription = "下一首"; setOnClickListener { send("next") } }, LinearLayout.LayoutParams(dp(52), -2))
         root.addView(bar, LinearLayout.LayoutParams(-1, -2))
         render(MusicService.state)
     }
@@ -64,7 +65,7 @@ internal class MusicPanel(private val activity: Activity, root: LinearLayout) {
         val body = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 8, 24, 8) }
         panelStatus = TextView(activity).apply { textSize = 16f }; body.addView(panelStatus)
         body.addView(TextView(activity).apply { text = "网易云心动模式 · 后台和锁屏继续播放\n通知栏可停止；从最近任务划掉本应用会停止。\n登录不会自动播放。"; textSize = 12f })
-        qr = ImageView(activity).apply { contentDescription = "网易云登录二维码"; adjustViewBounds = true }; body.addView(qr, LinearLayout.LayoutParams(-1, 400))
+        qr = ImageView(activity).apply { contentDescription = "网易云登录二维码"; adjustViewBounds = true }; body.addView(qr, LinearLayout.LayoutParams(-1, dp(220)))
         body.addView(Button(activity).apply { text = "获取 / 刷新登录二维码"; setOnClickListener { send("login") } })
         body.addView(Button(activity).apply { text = "分享二维码（可保存后在网易云扫一扫相册中尝试）"; textSize = 12f; setOnClickListener {
             val current = bitmap ?: return@setOnClickListener

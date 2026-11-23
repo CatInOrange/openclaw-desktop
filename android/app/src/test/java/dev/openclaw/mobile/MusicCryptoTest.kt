@@ -2,11 +2,6 @@ package dev.openclaw.mobile
 
 import org.junit.Assert.*
 import org.junit.Test
-import java.security.KeyFactory
-import java.security.spec.X509EncodedKeySpec
-import java.util.Base64
-import javax.crypto.Cipher
-import javax.crypto.spec.SecretKeySpec
 
 class MusicCryptoTest {
     @Test fun eapiMatchesPinnedNodeAdapterVector() {
@@ -16,7 +11,7 @@ class MusicCryptoTest {
     @Test fun weapiAesMatchesNodeVectorAndRsaIsFixedWidth() {
         val result = MusicCrypto.weapi("{\"csrf_token\":\"\"}", "abcdefghijklmnop")
         assertEquals("Xq7VamFhKH1OmZhJfUWqviI00tbweILz08QglvBsyBzamphgzo8DM5n5/oKf79/r", result["params"])
-        assertEquals(256, result.getValue("encSecKey").length)
+        assertEquals("d15a1683c992095d0c234c19966605c5c5964911268bbeda8cb8d08d834913e59d53b32358903a121b5fca784c1f5ae44951fd02524df58ecc98e52cc7cf8689b42c2e93ddf05b0592512d87f5960467e2f086c018849d76014d323500e30f13ef4cafbb0cf5a66731a3f1776c75ca35d0062dac70a3e33245afabcf47938487", result["encSecKey"])
         assertEquals(result, MusicCrypto.weapi("{\"csrf_token\":\"\"}", "abcdefghijklmnop"))
     }
     @Test fun randomWeapiEnvelopesDoNotReuseSecret() {

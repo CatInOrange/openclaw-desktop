@@ -6,6 +6,7 @@ const WORKSPACE_CSS = fs.readFileSync(path.join(__dirname, 'workspace-chrome.css
 function applyWorkspaceChrome(settings) {
   const root = document.documentElement;
   if (!root || !document.body) return;
+  for (const region of document.querySelectorAll('[data-oc-caption-region]')) region.removeAttribute('data-oc-caption-region');
   const enabled = settings.chromeActive && ((settings.integratedChrome && !settings.fullscreen) || settings.musicControls);
   if (!enabled) {
     root.removeAttribute('data-oc-caption');
@@ -26,7 +27,13 @@ function applyWorkspaceChrome(settings) {
     const atTop = rect.height > 0 && rect.width > 0 && rect.top >= -1 && rect.top <= (wasFallback ? height + 1 : 1);
     if (atTop) {
       // Only the rightmost header needs caption-button space in a split layout.
-      header.setAttribute('data-oc-caption-row', rect.right >= window.innerWidth - 2 ? 'right' : 'left');
+      // New Control UI reserves a sibling panels-toggle outside the header.
+      // Use the owning region's edge, not the already-inset header edge.
+      const region = header.closest?.('.sidebar-region');
+      const regionRect = region?.getBoundingClientRect();
+      const rightmost = (regionRect?.right ?? rect.right) >= window.innerWidth - 2;
+      header.setAttribute('data-oc-caption-row', rightmost ? 'right' : 'left');
+      if (rightmost && region) region.setAttribute('data-oc-caption-region', 'right');
       found = true;
     } else header.removeAttribute('data-oc-caption-row');
   }

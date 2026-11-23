@@ -7,7 +7,7 @@ html[data-oc-caption] [data-oc-caption-row]{
 html[data-oc-caption] [data-oc-caption-row="right"]{
   padding-right:calc(var(--oc-caption-inset) + 12px)!important;
 }
-html[data-oc-caption] [data-oc-caption-row] :is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[contenteditable],openclaw-tooltip,openclaw-session-owner-chip,openclaw-chat-details,.chat-pane__header-trailing){
+html[data-oc-caption] [data-oc-caption-row] :is(button,a,input,textarea,select,summary,[role="button"],[role="tab"],[contenteditable],openclaw-tooltip,openclaw-session-owner-chip,openclaw-chat-details){
   app-region:no-drag;-webkit-app-region:no-drag;
 }
 html[data-oc-caption-fallback] .shell{padding-top:var(--oc-caption-height)!important;box-sizing:border-box}
@@ -18,4 +18,18 @@ html[data-oc-caption-fallback] .shell{padding-top:var(--oc-caption-height)!impor
 html[data-oc-video="on"] #oc-desktop-caption-fallback{
   background:color-mix(in srgb,var(--bg) var(--oc-glass-coverage,22%),transparent);
   backdrop-filter:blur(12px) saturate(1.12);-webkit-backdrop-filter:blur(12px) saturate(1.12);
+}
+
+/* Recent Control UI places the panel toggle beside, rather than inside, the
+   header. Keep it clear of both the native captions and our music view. */
+html[data-oc-caption] [data-oc-caption-region="right"] {
+  --desktop-toggle-inset:calc(var(--oc-caption-inset) + 8px);
+}
+html[data-oc-caption] [data-oc-caption-region="right"] > .sidebar-region__panels-toggle {
+  right:calc(var(--oc-caption-inset) + 8px)!important;
+}
+/* The trailing flex wrapper grows across empty titlebar space. Only actual
+   controls opt out of dragging; the wrapper itself must remain draggable. */
+html[data-oc-caption] [data-oc-caption-row] .chat-pane__header-trailing {
+  app-region:drag;-webkit-app-region:drag;
 }

@@ -295,7 +295,7 @@ class MainActivity : Activity() {
             if (!isDestroyed && !isFinishing && extension != null) {
                 gecko.webExtensionController.setMessageDelegate(extension, object : WebExtension.MessageDelegate {
                     override fun onMessage(nativeApp: String, message: Any, sender: WebExtension.MessageSender): GeckoResult<Any>? {
-                        val current = gateway ?: return GeckoResult.fromValue<Any>(JSONObject().put("allowed", false))
+                        val current = gateway ?: return GeckoResult.fromValue<Any>(JSONObject().put("allowed", false).toString())
                         val allowed = nativeApp == "appearance" && sender.session === gecko && sender.isTopLevel &&
                             sender.environmentType == WebExtension.MessageSender.ENV_TYPE_CONTENT_SCRIPT &&
                             GatewayPolicy.sameOrigin(sender.url, current.url) &&
@@ -310,7 +310,8 @@ class MainActivity : Activity() {
                             .put("active", foregroundActive && bootVideo == null && !mainFrameFailed)
                             .put("strength", appearance.getInt("strength", 60).coerceIn(0, 100))
                             .put("glassTransparency", appearance.getInt("glass", 78).coerceIn(0, 100))
-                        return GeckoResult.fromValue<Any>(response)
+                        // EventDispatcher supports primitives/GeckoBundle, not JSONObject responses.
+                        return GeckoResult.fromValue<Any>(response.toString())
                     }
                 }, "appearance")
                 // Upgrade existing profiles too: Gecko persists a previous DENY.

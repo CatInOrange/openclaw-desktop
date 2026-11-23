@@ -9,7 +9,7 @@ async function fixture(settings, broken = false) {
   const reports = [];
   const applied = [], events = {};
   const context = {
-    browser: {runtime: {sendNativeMessage: async (_, message) => { reports.push(message.status); return settings; },
+    browser: {runtime: {sendNativeMessage: async (_, message) => { reports.push(message.status); return typeof settings === 'string' ? settings : JSON.stringify(settings); },
       sendMessage: async () => {fetches++; if (broken) throw Error('secret URL/token'); return {url: 'data:video/mp4;base64,bG9jYWw='};}}},
     fetch: () => {throw Error('content fetch forbidden');},
     Date: {now: () => now},
@@ -71,4 +71,17 @@ test('renderer exceptions retain a bounded stage, never raw exception text', asy
   run.context.applyBackground = settings => {if (settings.enabled) throw new TypeError('private URL and token');};
   await run.tick(); await run.tick();
   assert.equal(run.reports.at(-1).error, 'renderer:TypeError');
+});
+
+test('native JSON string is decoded before authorization and rendering', async () => {
+  const run = await fixture(JSON.stringify({allowed: true, enabled: true, active: true, strength: 61}));
+  assert.equal(run.fetches(), 1);
+  assert.equal(run.applied.at(-1).strength, 61);
+  const denied = await fixture(JSON.stringify({allowed: false, enabled: true}));
+  assert.equal(denied.fetches(), 0);
+  const malformed = await fixture('{');
+  await malformed.tick();
+  assert.equal(malformed.fetches(), 0);
+  assert.equal(malformed.reports.at(-1).state, 'error');
+  assert.match(malformed.reports.at(-1).error, /^settings-decode:/);
 });

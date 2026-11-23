@@ -8,7 +8,9 @@
     pending = true;
     let stage = 'native-settings';
     try {
-      const settings = await browser.runtime.sendNativeMessage('appearance', {type: 'settings', status});
+      const wire = await browser.runtime.sendNativeMessage('appearance', {type: 'settings', status});
+      stage = 'settings-decode';
+      const settings = typeof wire === 'string' ? JSON.parse(wire) : wire;
       if (!settings?.allowed) { status = {state: 'origin-denied'}; return; }
       if (Date.now() < retryAt) return;
       if (settings.enabled && !mediaUrl) {

@@ -46,7 +46,7 @@ with zipfile.ZipFile(apk) as archive:
     for required in ['media-service.js', 'manifest.json', 'appearance.js', 'background-core.js', 'background.css', 'NOTICE.md', 'LICENSE.dsh-video-skin', 'pet-main.js', 'pet-mobile.js', 'pet-observer.js', 'pet-state.js', 'pet-media.js', 'PET-NOTICE.md']:
         assert 'assets/appearance/' + required in names, 'Missing local appearance resource: ' + required
     pet_script = archive.read('assets/appearance/pet-media.js').decode()
-    clips = json.loads(pet_script.split('const PET_MEDIA = ',1)[1].split(';',1)[0])
+    clips = json.JSONDecoder().raw_decode(pet_script.split('const PET_MEDIA = ',1)[1])[0]
     assert set(clips) == {'idle','thinking','working','result','waiting','success','error'}
     for action, data in clips.items():
         assert hashlib.sha256(base64.b64decode(data.split(',',1)[1],validate=True)).digest() == hashlib.sha256((root/'assets/pet'/f'{action}.webm').read_bytes()).digest(), 'Pet media differs from licensed source'

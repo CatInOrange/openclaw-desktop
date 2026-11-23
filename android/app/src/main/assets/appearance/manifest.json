@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "OpenClaw local appearance",
-  "version": "0.1.9",
+  "version": "0.2.2",
   "browser_specific_settings": {
     "gecko": {
       "id": "appearance@openclaw.mobile"
@@ -19,8 +19,23 @@
         "https://*/*"
       ],
       "js": [
+        "pet-observer.js",
+        "pet-main.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
         "background-core.js",
-        "appearance.js"
+        "appearance.js",
+        "pet-state.js",
+        "pet-mobile.js"
       ],
       "css": [
         "background.css"
@@ -32,7 +47,8 @@
   "background": {
     "scripts": [
       "background-media.js",
-      "media-service.js"
+      "media-service.js",
+      "pet-media.js"
     ],
     "persistent": true
   }

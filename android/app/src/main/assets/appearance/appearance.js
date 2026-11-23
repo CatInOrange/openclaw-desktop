@@ -11,6 +11,7 @@
       const wire = await browser.runtime.sendNativeMessage('appearance', {type: 'settings', status});
       stage = 'settings-decode';
       const settings = typeof wire === 'string' ? JSON.parse(wire) : wire;
+      globalThis.ocApplyPetSettings?.(settings);
       if (!settings?.allowed) { status = {state: 'origin-denied'}; return; }
       if (Date.now() < retryAt) return;
       if (settings.enabled && !mediaUrl) {
@@ -28,6 +29,7 @@
         error: video?.error ? 'media-' + video.error.code : '',
         ready: video?.readyState || 0, time: Math.floor(video?.currentTime || 0)};
     } catch (error) {
+      globalThis.ocApplyPetSettings?.({allowed:false});
       const name = ['Error', 'TypeError', 'SecurityError', 'NotAllowedError', 'NotSupportedError', 'ReferenceError'].includes(error?.name) ? error.name : 'Error';
       status = {state: 'error', error: stage + ':' + name};
       // Native messaging can fail transiently during page/session startup.

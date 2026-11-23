@@ -5,7 +5,7 @@ from pathlib import Path
 parser=argparse.ArgumentParser()
 parser.add_argument('apk',type=Path)
 parser.add_argument('--build-tools',type=Path,required=True)
-parser.add_argument('--expected-version',default='0.2.1')
+parser.add_argument('--expected-version',default='0.2.2')
 args=parser.parse_args()
 root=Path(__file__).resolve().parent.parent
 apk=args.apk.resolve()
@@ -43,8 +43,13 @@ with zipfile.ZipFile(apk) as archive:
     assert media_url.startswith('data:video/mp4;base64,')
     media_bytes = base64.b64decode(media_url.split(',', 1)[1], validate=True)
     assert hashlib.sha256(media_bytes).digest() == hashlib.sha256((root/'assets/video/background.mp4').read_bytes()).digest(), 'Derived wallpaper differs from licensed source'
-    for required in ['media-service.js', 'manifest.json', 'appearance.js', 'background-core.js', 'background.css', 'NOTICE.md', 'LICENSE.dsh-video-skin']:
+    for required in ['media-service.js', 'manifest.json', 'appearance.js', 'background-core.js', 'background.css', 'NOTICE.md', 'LICENSE.dsh-video-skin', 'pet-main.js', 'pet-mobile.js', 'pet-observer.js', 'pet-state.js', 'pet-media.js', 'PET-NOTICE.md']:
         assert 'assets/appearance/' + required in names, 'Missing local appearance resource: ' + required
+    pet_script = archive.read('assets/appearance/pet-media.js').decode()
+    clips = json.loads(pet_script.split('const PET_MEDIA = ',1)[1].split(';',1)[0])
+    assert set(clips) == {'idle','thinking','working','result','waiting','success','error'}
+    for action, data in clips.items():
+        assert hashlib.sha256(base64.b64decode(data.split(',',1)[1],validate=True)).digest() == hashlib.sha256((root/'assets/pet'/f'{action}.webm').read_bytes()).digest(), 'Pet media differs from licensed source'
     assert 'lib/arm64-v8a/libxul.so'  in names,'Bundled Gecko engine missing'
 size=apk.stat().st_size
 assert size <= 250*1024*1024,f'APK {size} bytes exceeds the supported updater download limit'

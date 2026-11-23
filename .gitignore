@@ -23,3 +23,8 @@ android/app/src/main/assets/appearance/NOTICE.md
 android/app/src/main/assets/appearance/LICENSE.dsh-video-skin
 
 android/app/src/main/assets/appearance/background-media.js
+
+android/app/src/main/assets/appearance/pet-observer.js
+android/app/src/main/assets/appearance/pet-state.js
+android/app/src/main/assets/appearance/pet-media.js
+android/app/src/main/assets/appearance/PET-NOTICE.md

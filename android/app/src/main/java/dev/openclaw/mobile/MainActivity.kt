@@ -49,6 +49,7 @@ class MainActivity : Activity() {
     private var bootVideo: BootVideo? = null
     private var musicPanel: MusicPanel? = null
     private var foregroundActive = false
+    private var keyboardVisible = false
     private var wallpaperStatus = "等待页面扩展连接"
     private val appearance by lazy { getSharedPreferences("appearance", MODE_PRIVATE) }
     private var browser: GeckoView? = null
@@ -119,8 +120,12 @@ class MainActivity : Activity() {
             if (Build.VERSION.SDK_INT >= 30) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars())
                 val keyboard = insets.getInsets(WindowInsets.Type.ime())
+                keyboardVisible = insets.isVisible(WindowInsets.Type.ime())
                 view.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, keyboard.bottom))
             } else {
+                @Suppress("DEPRECATION")
+                val legacyBottom = insets.systemWindowInsetBottom
+                keyboardVisible = legacyBottom > dp(100)
                 @Suppress("DEPRECATION")
                 view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
             }
@@ -310,6 +315,8 @@ class MainActivity : Activity() {
                         val response = JSONObject().put("allowed", allowed)
                         if (allowed) response.put("enabled", appearance.getBoolean("background", true))
                             .put("active", foregroundActive && bootVideo == null && !mainFrameFailed)
+                            .put("petEnabled", appearance.getBoolean("pet", false))
+                            .put("keyboardVisible", keyboardVisible)
                             .put("strength", appearance.getInt("strength", 60).coerceIn(0, 100))
                             .put("glassTransparency", appearance.getInt("glass", 78).coerceIn(0, 100))
                         // EventDispatcher supports primitives/GeckoBundle, not JSONObject responses.
@@ -396,9 +403,9 @@ class MainActivity : Activity() {
 
     private fun showAppearance() {
         val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(8), dp(24), dp(8)) }
-        fun toggle(key: String, title: String) {
+        fun toggle(key: String, title: String, fallback: Boolean = true) {
             body.addView(Switch(this).apply {
-                text = title; isChecked = appearance.getBoolean(key, true)
+                text = title; isChecked = appearance.getBoolean(key, fallback)
                 setPadding(0, dp(10), 0, dp(10))
                 setOnCheckedChangeListener { _, checked -> appearance.edit().putBoolean(key, checked).apply() }
             })
@@ -421,6 +428,8 @@ class MainActivity : Activity() {
         toggle("boot", "开机动画（下次启动生效）")
         toggle("sound", "开机声音（背景始终静音）")
         toggle("background", "动态背景")
+        toggle("pet", "边缘小宠（可拖动 / 收起）", false)
+        body.addView(text("小宠素材：PC2005-cloud/dsh-pet 0.4.9 · 禁止商用，公开二创须署名。", 11f))
         slider("strength", "背景强度", 60)
         slider("glass", "毛玻璃透明度", 78)
         val diagnostic = text("动态背景状态：$wallpaperStatus", 12f)

@@ -4,7 +4,8 @@
 // reads auth storage, and exports only normalized monitoring facts. No pet IPC is
 // exposed to the remote page. The hook is version-adapted protocol code, not DOM
 // scraping. Failure or unsupported protocol leaves the monitor unknown.
-function installPetObserver() {
+function installPetObserver({initiallyActive = true} = {}) {
+  let active = initiallyActive;
   if (window.__ocPetObserver) return;
   const events = [], pending = new Map(), subscriptions = new Map();
   const Native = window.WebSocket;
@@ -62,6 +63,7 @@ function installPetObserver() {
       let r;
       try { r = await request('sessions.messages.subscribe', {...params, includeApprovals: true}); }
       catch {
+        if (generation !== epoch || !active) return false;
         // Keep tool/lifecycle coverage without claiming approval visibility.
         await request('sessions.messages.subscribe', params);
         return false;
@@ -81,7 +83,7 @@ function installPetObserver() {
     } catch { if (generation === epoch) subscriptions.delete(id); return false; }
   }
   async function refresh() {
-    if (!ready) return;
+    if (!ready || !active) return;
     if (reading) { readAgain = true; return; }
     reading = true; dirty = false;
     const generation = epoch;
@@ -120,7 +122,7 @@ function installPetObserver() {
       push({type: 'snapshot', sessions: rows.map(r => ({key: r.key, sessionKey: r.key, agentId: r.agentId, sessionId: r.sessionId, title: r.title || r.displayName, hasActiveRun: r.hasActiveRun, activeRunIds: r.activeRunIds})), complete: complete && !dirty, approvalsComplete: approvalComplete});
       push({type: 'notice', message: approvalComplete ? '' : '授权提醒覆盖不完整；请回主界面确认', approvalsAvailable: approvalComplete});
     } catch { if (generation === epoch) push({type: 'snapshot', sessions: [], complete: false}); }
-    finally { reading = false; if (ready && (dirty || readAgain)) { readAgain = false; setTimeout(() => void refresh(), 300); } }
+    finally { reading = false; if (ready && active && (dirty || readAgain)) { readAgain = false; setTimeout(() => void refresh(), 300); } }
   }
   function disconnect() {
     epoch++; ready = false; subscriptions.clear(); approvals.clear(); approvalRevisions.clear();
@@ -130,6 +132,7 @@ function installPetObserver() {
   async function connected(ws) {
     if (ready && socket === ws) return;
     epoch++; socket = ws; ready = true; push({type: 'connection', connected: true});
+    if (!active) return;
     try { await request('sessions.subscribe', {limit: 100}); } catch { /* periodic list remains authoritative */ }
     void refresh();
   }
@@ -144,7 +147,7 @@ function installPetObserver() {
           return;
         }
         if (m.type === 'res' && m.ok && m.payload?.type === 'hello-ok') void connected(this);
-        if (socket === this && ready && m.type === 'event') event(m.event, m.payload);
+        if (socket === this && ready && active && m.type === 'event') event(m.event, m.payload);
       });
       this.addEventListener('close', () => { if (socket === this) disconnect(); });
     }
@@ -154,6 +157,21 @@ function installPetObserver() {
   const fastTimer = setInterval(() => { if (ready && dirty) void refresh(); }, 500);
   Object.defineProperty(window, '__ocPetObserver', {configurable: true, value: {
     drain: () => events.splice(0),
+    setActive: value => {
+      if (active === Boolean(value)) return;
+      active = Boolean(value); epoch++;
+      if (!active) {
+        for (const entry of subscriptions.values()) {
+          const p = entry.params;
+          void request('sessions.messages.unsubscribe', {key:p.key, agentId:p.agentId, subscriptionId:p.subscriptionId}).catch(() => {});
+        }
+        subscriptions.clear(); approvals.clear(); approvalRevisions.clear(); events.length = 0;
+        push({type:'connection', connected:false});
+      } else {
+        push({type:'connection', connected:ready});
+        if (ready) void refresh();
+      }
+    },
     stop: () => { clearInterval(timer); clearInterval(fastTimer); disconnect(); window.WebSocket = Native; delete window.__ocPetObserver; }
   }});
 }

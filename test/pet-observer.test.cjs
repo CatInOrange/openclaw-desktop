@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const vm = require('node:vm');
 const {installPetObserver} = require('../src/pet-observer.cjs');
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve)); };
-function harness(handler) {
+function harness(handler, initiallyActive = true) {
   const intervals = [], requests = [];
   let clock = Date.now();
   class Socket {
@@ -19,7 +19,7 @@ function harness(handler) {
   }
   const window = {WebSocket: Socket};
   const context = {window, Date: {now: () => clock}, setInterval: cb => {intervals.push(cb); return cb;}, clearInterval() {}, setTimeout, clearTimeout};
-  vm.runInNewContext(`(${installPetObserver.toString()})()`, context);
+  vm.runInNewContext(`(${installPetObserver.toString()})({initiallyActive:${initiallyActive}})`, context);
   const socket = new window.WebSocket('ws://test');
   socket.emit('message', {type: 'res', id: 'ui-connect', ok: true, payload: {type: 'hello-ok'}});
   return {window, socket, requests, intervals, advance: ms => {clock += ms; intervals[0]();}, drain: () => JSON.parse(JSON.stringify(window.__ocPetObserver.drain())), stop: () => window.__ocPetObserver.stop()};
@@ -112,4 +112,20 @@ test('live approval arriving during stale replay is not cleared', async () => {
   assert.ok(!events.some(e => e.type === 'approval' && e.approvalId === 'live' && e.phase === 'resolved'));
   assert.equal(events.find(e => e.type === 'snapshot').approvalsComplete, false);
   h.stop();
+});
+
+
+test('mobile default-off performs no roster RPC; enabling reuses socket and suspension retires subscriptions', async () => {
+ const h=harness(req => {
+   if(req.method==='sessions.list')return {sessions:[{key:'agent:a:main',agentId:'a',hasActiveRun:false}],hasMore:false};
+   if(req.method==='sessions.messages.subscribe')return {approvalReplay:{sessionKey:req.params.key,approvals:[],truncated:false}};
+   return {};
+ },false);
+ await flush();h.advance(16000);await flush();assert.equal(h.requests.length,0);
+ h.window.__ocPetObserver.setActive(true);await flush();
+ assert.ok(h.drain().some(e=>e.type==='snapshot'&&e.complete));
+ h.window.__ocPetObserver.setActive(false);await flush();
+ assert.ok(h.requests.some(r=>r.method==='sessions.messages.unsubscribe'));
+ const count=h.requests.length;h.advance(16000);await flush();assert.equal(h.requests.length,count);
+ h.window.__ocPetObserver.setActive(true);await flush();assert.ok(h.drain().some(e=>e.type==='snapshot'&&e.complete));h.stop();
 });

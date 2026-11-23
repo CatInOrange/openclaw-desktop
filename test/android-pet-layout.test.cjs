@@ -36,7 +36,8 @@ test('keyboard retains a miniature pet, manual collapse survives, and background
 });
 test('mobile wallpaper compatibility targets only transcript canvases, never every descendant',()=>{
   const css=fs.readFileSync(path.join(root,'src/background.css'),'utf8');
-  const compatibility=css.slice(css.indexOf('/* New Control UI mobile'));
+  const start=css.indexOf('/* New Control UI mobile');
+  const compatibility=css.slice(css.indexOf('*/',start)+2);
   assert.match(compatibility,/html\[data-oc-video="on"\] \.shell:not\(\.shell--settings\)/);
   assert.match(compatibility,/\.sidebar-region\.sidebar-region--mobile-host:not\(\.sidebar-region--expanded\):not\(\.sidebar-region--expanded-side\)/);
   assert.match(compatibility,/\[data-mobile-open\] > \.sidebar-region__primary/);

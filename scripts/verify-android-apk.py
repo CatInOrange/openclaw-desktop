@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Non-GUI inspection of the distributable APK, identity and release signature."""
-import argparse, hashlib, os, re, subprocess, zipfile
+import argparse, base64, hashlib, json, os, re, subprocess, zipfile
 from pathlib import Path
 parser=argparse.ArgumentParser()
 parser.add_argument('apk',type=Path)
 parser.add_argument('--build-tools',type=Path,required=True)
-parser.add_argument('--expected-version',default='0.1.7')
+parser.add_argument('--expected-version',default='0.1.8')
 args=parser.parse_args()
 root=Path(__file__).resolve().parent.parent
 apk=args.apk.resolve()
@@ -36,9 +36,14 @@ with zipfile.ZipFile(apk) as archive:
     assert 'raw/boot' in run('aapt', 'dump', 'resources', str(apk)), 'Missing boot resource ID'
     boot_entries = [name for name in names if name.startswith('res/') and name.endswith('.mp4')]
     assert len(boot_entries) == 1, 'Unexpected packaged boot media count'
-    for packaged, source in [(boot_entries[0], 'assets/video/boot.mp4'), ('assets/appearance/background.mp4', 'assets/video/background.mp4')]:
+    for packaged, source in [(boot_entries[0], 'assets/video/boot.mp4')]:
         assert hashlib.sha256(archive.read(packaged)).digest() == hashlib.sha256((root/source).read_bytes()).digest(), 'Bundled media differs from licensed desktop source'
-    for required in ['manifest.json', 'appearance.js', 'background-core.js', 'background.css', 'NOTICE.md', 'LICENSE.dsh-video-skin']:
+    media_script = archive.read('assets/appearance/background-media.js').decode()
+    media_url = json.loads(media_script.split(' = ', 1)[1].strip().removesuffix(';'))
+    assert media_url.startswith('data:video/mp4;base64,')
+    media_bytes = base64.b64decode(media_url.split(',', 1)[1], validate=True)
+    assert hashlib.sha256(media_bytes).digest() == hashlib.sha256((root/'assets/video/background.mp4').read_bytes()).digest(), 'Derived wallpaper differs from licensed source'
+    for required in ['media-service.js', 'manifest.json', 'appearance.js', 'background-core.js', 'background.css', 'NOTICE.md', 'LICENSE.dsh-video-skin']:
         assert 'assets/appearance/' + required in names, 'Missing local appearance resource: ' + required
     assert 'lib/arm64-v8a/libxul.so'  in names,'Bundled Gecko engine missing'
 size=apk.stat().st_size

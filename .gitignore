@@ -21,3 +21,5 @@ android/app/src/main/assets/appearance/background.css
 android/app/src/main/assets/appearance/background-core.js
 android/app/src/main/assets/appearance/NOTICE.md
 android/app/src/main/assets/appearance/LICENSE.dsh-video-skin
+
+android/app/src/main/assets/appearance/background-media.js

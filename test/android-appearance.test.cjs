@@ -6,11 +6,12 @@ const fs = require('node:fs');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../android/app/src/main/assets/appearance/appearance.js'), 'utf8');
 async function fixture(settings, broken = false) {
   let tick, fetches = 0, now = 10000;
+  const reports = [];
   const applied = [], events = {};
   const context = {
-    browser: {runtime: {sendNativeMessage: async () => settings, getURL: () => 'moz-extension://local/background.mp4'}},
-    fetch: async () => {fetches++; if (broken) throw Error('codec/source'); return {ok: true, blob: async () => ({})};},
-    FileReader: class { readAsDataURL() { this.result = 'data:video/mp4;base64,bG9jYWw='; this.onload(); } },
+    browser: {runtime: {sendNativeMessage: async (_, message) => { reports.push(message.status); return settings; },
+      sendMessage: async () => {fetches++; if (broken) throw Error('secret URL/token'); return {url: 'data:video/mp4;base64,bG9jYWw='};}}},
+    fetch: () => {throw Error('content fetch forbidden');},
     Date: {now: () => now},
     applyBackground: value => applied.push(value),
     setInterval: fn => {tick = fn; return 1;}, clearInterval() {},
@@ -19,7 +20,7 @@ async function fixture(settings, broken = false) {
   };
   vm.runInNewContext(source, context);
   await new Promise(resolve => setImmediate(resolve));
-  return {applied, events, context, tick, fetches: () => fetches, advance: () => { now += 4000; }};
+  return {applied, events, context, tick, reports, fetches: () => fetches, advance: () => { now += 4000; }};
 }
 test('Android appearance never loads media when native origin authorization denies', async () => {
   const run = await fixture({allowed: false, enabled: true});
@@ -37,6 +38,7 @@ test('Android local media failure backs off, then permits retry', async () => {
   const run = await fixture({allowed: true, enabled: true, active: true}, true);
   assert.equal(run.applied.at(-1).enabled, false);
   await run.tick(); assert.equal(run.fetches(), 1); assert.equal(run.applied.at(-1).enabled, false);
+  assert.equal(run.reports.at(-1).error, 'local-media-message:Error');
   run.advance(); await run.tick(); assert.equal(run.fetches(), 2);
 });
 
@@ -48,4 +50,25 @@ test('a transient native message failure does not permanently disable wallpaper'
   run.advance(); await run.tick();
   assert.equal(run.applied.at(-1).enabled, true);
   assert.equal(run.fetches(), 1);
+});
+
+ test('media service only answers same-extension top-level content with fixed bundled bytes', async () => {
+  let listener;
+  const context = {OPENCLAW_BACKGROUND_MEDIA: 'data:video/mp4;base64,bG9jYWw=',
+    browser: {runtime: {id: 'appearance@openclaw.mobile', onMessage: {addListener(fn) {listener = fn;}}}}};
+  vm.runInNewContext(fs.readFileSync(require('node:path').join(__dirname, '../android/app/src/main/assets/appearance/media-service.js'), 'utf8'), context);
+  const sender = {id: 'appearance@openclaw.mobile', frameId: 0, url: 'https://gateway.example/'};
+  assert.equal((await listener({type: 'bundled-wallpaper'}, sender)).url, context.OPENCLAW_BACKGROUND_MEDIA);
+  assert.equal((await listener({type: 'bundled-wallpaper'}, {...sender, frameId: undefined})).url, context.OPENCLAW_BACKGROUND_MEDIA);
+  for (const denied of [{...sender, id: 'another'}, {...sender, frameId: 1}, {...sender, url: 'file:///private'}]) {
+    assert.equal(listener({type: 'bundled-wallpaper'}, denied), undefined);
+  }
+  assert.equal(listener({type: 'fetch', url: 'https://arbitrary.example/'}, sender), undefined);
+});
+
+test('renderer exceptions retain a bounded stage, never raw exception text', async () => {
+  const run = await fixture({allowed: true, enabled: true, active: true});
+  run.context.applyBackground = settings => {if (settings.enabled) throw new TypeError('private URL and token');};
+  await run.tick(); await run.tick();
+  assert.equal(run.reports.at(-1).error, 'renderer:TypeError');
 });

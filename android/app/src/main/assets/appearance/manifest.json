@@ -1,9 +1,39 @@
 {
   "manifest_version": 2,
   "name": "OpenClaw local appearance",
-  "version": "0.1.7",
-  "browser_specific_settings": {"gecko": {"id": "appearance@openclaw.mobile"}},
-  "permissions": ["geckoViewAddons", "nativeMessaging", "nativeMessagingFromContent"],
-  "content_scripts": [{"matches": ["http://*/*", "https://*/*"], "js": ["background-core.js", "appearance.js"], "css": ["background.css"], "run_at": "document_end", "all_frames": false}],
-  "web_accessible_resources": ["background.mp4"]
+  "version": "0.1.8",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "appearance@openclaw.mobile"
+    }
+  },
+  "permissions": [
+    "geckoViewAddons",
+    "nativeMessaging",
+    "nativeMessagingFromContent"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "background-core.js",
+        "appearance.js"
+      ],
+      "css": [
+        "background.css"
+      ],
+      "run_at": "document_end",
+      "all_frames": false
+    }
+  ],
+  "background": {
+    "scripts": [
+      "background-media.js",
+      "media-service.js"
+    ],
+    "persistent": true
+  }
 }

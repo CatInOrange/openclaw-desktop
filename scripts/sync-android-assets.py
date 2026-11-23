@@ -20,10 +20,18 @@ raw = resources / 'raw'
 raw.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(video / 'boot.mp4', raw / 'boot.mp4')
 extension = root / 'android/app/src/main/assets/appearance'
-for name in ['background.mp4', 'NOTICE.md', 'LICENSE.dsh-video-skin']:
+for name in ['NOTICE.md', 'LICENSE.dsh-video-skin']:
     shutil.copyfile(video / name, extension / name)
 shutil.copyfile(root / 'src/background.css', extension / 'background.css')
 core = (root / 'src/background.cjs').read_text()
 core = core[core.index('function applyBackground('):core.index('function watchBackground(')]
 (extension / 'background-core.js').write_text("'use strict';\n" + core)
 print('Shared boot/background clips, license and isolated background renderer copied.')
+
+# Package bytes as extension-private script data. No content-context fetch or
+# FileReader/Blob principal crossing is needed to load the bundled clip.
+import base64, json
+media = 'data:video/mp4;base64,' + base64.b64encode((video / 'background.mp4').read_bytes()).decode('ascii')
+(extension / 'background-media.js').write_text("'use strict';\nconst OPENCLAW_BACKGROUND_MEDIA = " + json.dumps(media) + ";\n")
+# Older local derivations must not accidentally ship a duplicate video.
+(extension / 'background.mp4').unlink(missing_ok=True)

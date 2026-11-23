@@ -3,36 +3,31 @@
 (() => {
   let mediaUrl, pending = false, stopped = false, retryAt = 0;
   let status = {state: 'starting'};
-  function dataUrl(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(new Error('media-read'));
-      reader.readAsDataURL(blob);
-    });
-  }
   async function sample() {
     if (pending || stopped) return;
     pending = true;
+    let stage = 'native-settings';
     try {
       const settings = await browser.runtime.sendNativeMessage('appearance', {type: 'settings', status});
       if (!settings?.allowed) { status = {state: 'origin-denied'}; return; }
       if (Date.now() < retryAt) return;
       if (settings.enabled && !mediaUrl) {
-        status = {state: 'loading-local-media'};
-        const response = await fetch(browser.runtime.getURL('background.mp4'));
-        if (!response.ok) throw new Error('media-fetch');
-        // A data URL has no extension blob principal. The page already permits
-        // data: media; no Gateway CSP changes or remote video requests needed.
-        mediaUrl = await dataUrl(await response.blob());
+        stage = 'local-media-message';
+        status = {state: stage};
+        // Native origin authorization above must succeed before requesting bytes.
+        const media = await browser.runtime.sendMessage({type: 'bundled-wallpaper'});
+        if (!media?.url?.startsWith('data:video/mp4;base64,')) throw new Error('media-response');
+        mediaUrl = media.url;
       }
+      stage = 'renderer';
       const result = applyBackground({...settings, active: settings.active && !document.hidden, url: mediaUrl});
       const video = document.getElementById('oc-desktop-video')?.querySelector('video');
       status = {state: result?.state || 'waiting',
         error: video?.error ? 'media-' + video.error.code : '',
         ready: video?.readyState || 0, time: Math.floor(video?.currentTime || 0)};
     } catch (error) {
-      status = {state: 'error', error: String(error?.name || 'Error').slice(0, 40)};
+      const name = ['Error', 'TypeError', 'SecurityError', 'NotAllowedError', 'NotSupportedError', 'ReferenceError'].includes(error?.name) ? error.name : 'Error';
+      status = {state: 'error', error: stage + ':' + name};
       // Native messaging can fail transiently during page/session startup.
       // Do not permanently disable media after one rejected promise.
       retryAt = Date.now() + 3000;

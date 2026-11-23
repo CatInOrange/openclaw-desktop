@@ -89,7 +89,7 @@ class MusicService : Service() {
                 when (action) {
                     "state" -> Unit
                     "pause" -> pause()
-                    "logout" -> { loginGeneration++; authenticated = false; api.cookie = ""; vault.clear(); queue.clear(); liked.clear(); seeds.clear(); pause(); emit(State(message = "已退出网易云登录")) }
+                    "logout" -> { resetSession(); emit(State(message = "已退出网易云登录")) }
                     "login" -> login()
                     "sms" -> {
                         require(phone.matches(Regex("[0-9]{6,15}"))) { "请输入手机号码（中国大陆）" }
@@ -119,13 +119,19 @@ class MusicService : Service() {
                     }
                 }
             } catch (error: Exception) {
-                if (api.cookie.isEmpty()) { authenticated = false; vault.clear(); pause() }
+                if (api.cookie.isEmpty()) resetSession()
                 if (action in listOf("toggle", "play", "next")) pause()
                 // Only our own fixed messages, never upstream URLs/cookies/errors.
                 val message = if (error is IllegalArgumentException || error is IllegalStateException) error.message?.takeIf { it.any { c -> c.code > 127 } } else null
                 emit(state.copy(authenticated = authenticated, message = message ?: "音乐网络请求失败，请稍后重试"))
             } finally { emit(state.copy(busy = false)); main.post { if (!state.playing) stopForeground(STOP_FOREGROUND_DETACH) } }
         }
+    }
+    private fun resetSession() {
+        loginGeneration++; generation++; pauseEpoch++; authenticated = false; api.cookie = ""; vault.clear()
+        queue.clear(); liked.clear(); seeds.clear(); ready = false
+        emit(State())
+        main.post { player?.release(); player = null; audio.abandonAudioFocusRequest(focus); stopForeground(STOP_FOREGROUND_REMOVE) }
     }
     private fun request(path: String, data: JSONObject = JSONObject(), web: Boolean = false) = api.call(path, data, web)
     private fun authenticate(): Boolean {
@@ -197,7 +203,7 @@ class MusicService : Service() {
         repeat(8) {
             if (queue.isEmpty()) fill()
             val song = queue.removeFirst(); val id = song.getLong("id")
-            val info = if (song.optString("name").isBlank()) request("/api/v3/song/detail", JSONObject().put("c", "[{\"id\":$id}]"), true).optJSONArray("songs")?.optJSONObject(0) ?: song else song
+            val info = if (song.optString("name").isBlank()) request("/api/v3/song/detail", JSONObject().put("c", JSONArray().put(JSONObject().put("id", id)).toString()), true).optJSONArray("songs")?.optJSONObject(0) ?: song else song
             val result = request("/api/song/enhance/player/url", JSONObject().put("ids", "[\"$id\"]").put("br", 128000)).optJSONArray("data")?.optJSONObject(0)
             val raw = result?.optString("url").orEmpty()
             if (result == null || result.optInt("code") != 200 || !result.isNull("freeTrialInfo") || raw.isEmpty()) return@repeat
@@ -207,7 +213,7 @@ class MusicService : Service() {
             val artists = info.optJSONArray("ar") ?: info.optJSONArray("artists") ?: JSONArray()
             emit(state.copy(title = info.optString("name", "未知歌曲"), artist = (0 until artists.length()).joinToString(" / ") { artists.getJSONObject(it).optString("name") }, id = id, liked = id in liked, playing = true, message = "缓冲中…"))
             main.post {
-                if (!alive || token != generation) return@post
+                if (!alive || token != generation || epoch != pauseEpoch || !state.playing) return@post
                 foreground()
                 if (audio.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) { command("pause"); return@post }
                 try {

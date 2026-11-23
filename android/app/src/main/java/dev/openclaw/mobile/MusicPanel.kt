@@ -18,12 +18,11 @@ import com.google.zxing.MultiFormatWriter
 import java.io.File
 
 /** App-owned controls; no credentials or privileged messages enter remote Control UI. */
-internal class MusicPanel(private val activity: Activity, root: LinearLayout) {
+internal class MusicPanel(private val activity: Activity, toolbar: LinearLayout) {
     private fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
     private val handler = Handler(Looper.getMainLooper())
-    private val title = TextView(activity).apply { textSize = 12f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(12, 0, 4, 0); setOnClickListener { show() } }
-    private val play = Button(activity).apply { textSize = 12f; setOnClickListener { send("toggle"); if (!MusicService.state.authenticated) show() } }
-    private val heart = Button(activity).apply { textSize = 15f; setOnClickListener { send("like") } }
+    private val play = ToolbarIcon.button(activity, ToolbarIcon.Kind.PLAY, "播放") { send("toggle"); if (!MusicService.state.authenticated) show() }
+    private val heart = ToolbarIcon.button(activity, ToolbarIcon.Kind.HEART, "喜欢当前歌曲") { send("like") }
     private var dialog: AlertDialog? = null
     private var panelStatus: TextView? = null
     private var qr: ImageView? = null
@@ -31,12 +30,10 @@ internal class MusicPanel(private val activity: Activity, root: LinearLayout) {
     private var bitmap: Bitmap? = null
     private val listener: (MusicService.State) -> Unit = { state -> handler.post { render(state) } }
     init {
-        val bar = LinearLayout(activity).apply { gravity = Gravity.CENTER_VERTICAL }
-        bar.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
-        bar.addView(play, LinearLayout.LayoutParams(dp(64), -2))
-        bar.addView(heart, LinearLayout.LayoutParams(dp(52), -2))
-        bar.addView(Button(activity).apply { text = "»"; textSize = 17f; contentDescription = "下一首"; setOnClickListener { send("next") } }, LinearLayout.LayoutParams(dp(52), -2))
-        root.addView(bar, LinearLayout.LayoutParams(-1, -2))
+        toolbar.addView(play)
+        toolbar.addView(heart)
+        toolbar.addView(ToolbarIcon.button(activity, ToolbarIcon.Kind.NEXT, "下一首") { send("next") })
+        toolbar.addView(ToolbarIcon.button(activity, ToolbarIcon.Kind.EXPAND, "打开音乐面板") { show() })
         render(MusicService.state)
     }
     private fun send(action: String, phone: String = "", code: String = "") { MusicService.send(activity, action, phone, code) }
@@ -44,9 +41,12 @@ internal class MusicPanel(private val activity: Activity, root: LinearLayout) {
     fun pause() { MusicService.listeners.remove(listener) }
     fun destroy() { pause(); dialog?.dismiss(); dialog = null; handler.removeCallbacksAndMessages(null) }
     private fun render(state: MusicService.State) {
-        title.text = if (state.id == 0L) "♫ ${state.message}" else "♫ ${state.title} · ${state.artist}"
-        play.text = if (state.playing) "暂停" else "播放"; play.isEnabled = !state.busy
-        heart.text = if (state.liked) "♥" else "♡"; heart.isEnabled = state.id != 0L && !state.busy
+        play.setImageDrawable(ToolbarIcon(activity, if (state.playing) ToolbarIcon.Kind.PAUSE else ToolbarIcon.Kind.PLAY))
+        play.contentDescription = if (state.playing) "暂停" else "播放"
+        play.isEnabled = !state.busy; play.alpha = if (state.busy) 0.4f else 1f
+        heart.setImageDrawable(ToolbarIcon(activity, ToolbarIcon.Kind.HEART, state.liked))
+        heart.contentDescription = if (state.liked) "取消喜欢当前歌曲" else "喜欢当前歌曲"
+        heart.isEnabled = state.id != 0L && !state.busy; heart.alpha = if (heart.isEnabled) 1f else 0.4f
         panelStatus?.text = "${state.title}${if (state.artist.isNotEmpty()) " · ${state.artist}" else ""}\n${state.message}"
         if (state.qr != qrValue) {
             qrValue = state.qr

@@ -126,16 +126,16 @@ class MainActivity : Activity() {
             }
             insets
         }
-        val toolbar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(14), 0, dp(8), 0) }
-        toolbar.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); contentDescription = "OpenClaw" }, LinearLayout.LayoutParams(dp(28), dp(28)))
-        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, 0, 0) }
-        titles.addView(text("OpenClaw", 17f))
-        subtitle = text("移动连接版", 10f).apply { alpha = 0.65f; maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
+        val toolbar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), 0, dp(4), 0) }
+        toolbar.addView(ImageView(this).apply { setImageResource(R.mipmap.ic_launcher); contentDescription = "OpenClaw" }, LinearLayout.LayoutParams(dp(24), dp(24)))
+        val titles = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(6), 0, 0, 0) }
+        titles.addView(text("OpenClaw", 14f).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END })
+        subtitle = text("移动连接版", 10f).apply { visibility = View.GONE; alpha = 0.65f; maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
         titles.addView(subtitle)
         toolbar.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        toolbar.addView(Button(this).apply { text = "设置"; textSize = 13f; setOnClickListener { showSettings() } }, LinearLayout.LayoutParams(dp(68), dp(46)))
+        musicPanel = MusicPanel(this, toolbar)
+        toolbar.addView(ToolbarIcon.button(this, ToolbarIcon.Kind.SETTINGS, "设置") { showSettings() })
         root.addView(toolbar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)))
-        musicPanel = MusicPanel(this, root)
         progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; visibility = View.GONE }
         root.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3)))
         content = FrameLayout(this)

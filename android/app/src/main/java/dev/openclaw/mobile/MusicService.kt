@@ -74,28 +74,29 @@ class MusicService : Service() {
         command(action, intent?.getStringExtra("phone").orEmpty(), intent?.getStringExtra("code").orEmpty(), intent?.getLongExtra("trackId", 0) ?: 0)
         return START_NOT_STICKY
     }
-    private fun emit(value: State) {
+    @Synchronized private fun emit(change: (State) -> State) {
         if (!alive) return
+        val value = change(state)
         state = value
-        main.post { if (alive) { listeners.forEach { it(value) }; updateMedia(value) } }
+        main.post { if (alive) { listeners.forEach { it(state) }; updateMedia(state) } }
     }
     private fun command(action: String, phone: String = "", code: String = "", target: Long = state.id) {
         if (!alive) return
         val epoch = pauseEpoch
         worker.execute {
             if (!alive || (action in listOf("toggle", "play", "next") && epoch != pauseEpoch)) return@execute
-            emit(state.copy(busy = true))
+            emit { current -> current.copy(busy = true) }
             try {
                 when (action) {
                     "state" -> Unit
                     "pause" -> pause()
-                    "logout" -> { resetSession(); emit(State(message = "已退出网易云登录")) }
+                    "logout" -> { resetSession(); emit { current -> State(message = "已退出网易云登录") } }
                     "login" -> login()
                     "sms" -> {
                         require(phone.matches(Regex("[0-9]{6,15}"))) { "请输入手机号码（中国大陆）" }
                         val result = api.call("/api/sms/captcha/sent", JSONObject().put("ctcode", "86").put("secrete", "music_middleuser_pclogin").put("cellphone", phone), true, false)
                         require(result.optInt("code") == 200) { "验证码发送失败或需要风控验证，请使用二维码登录" }
-                        emit(state.copy(message = "验证码已发送，请输入短信验证码"))
+                        emit { current -> current.copy(message = "验证码已发送，请输入短信验证码") }
                     }
                     "smsLogin" -> {
                         require(phone.matches(Regex("[0-9]{6,15}")) && code.matches(Regex("[0-9]{4,8}"))) { "请填写手机号和短信验证码" }
@@ -109,12 +110,12 @@ class MusicService : Service() {
                         val result = request("/api/radio/like", JSONObject().put("alg", "itembased").put("trackId", target).put("like", value).put("time", "3"), true)
                         require(result.optInt("code") == 200) { "红心同步失败，请重试" }
                         if (value) liked.add(target) else liked.remove(target)
-                        if (state.id == target) emit(state.copy(liked = value, message = ""))
+                        if (state.id == target) emit { current -> current.copy(liked = value, message = "") }
                     }
                     "toggle", "play", "next" -> {
                         if (!authenticated && !authenticate()) { login(); return@execute }
                         if (action == "toggle" && state.playing) pause()
-                        else if (action != "next" && state.id != 0L && ready) resume()
+                        else if (action != "next" && state.id != 0L && ready) resume(epoch)
                         else { failures = 0; next() }
                     }
                 }
@@ -123,14 +124,14 @@ class MusicService : Service() {
                 if (action in listOf("toggle", "play", "next")) pause()
                 // Only our own fixed messages, never upstream URLs/cookies/errors.
                 val message = if (error is IllegalArgumentException || error is IllegalStateException) error.message?.takeIf { it.any { c -> c.code > 127 } } else null
-                emit(state.copy(authenticated = authenticated, message = message ?: "音乐网络请求失败，请稍后重试"))
-            } finally { emit(state.copy(busy = false)); main.post { if (!state.playing) stopForeground(STOP_FOREGROUND_DETACH) } }
+                emit { current -> current.copy(authenticated = authenticated, message = message ?: "音乐网络请求失败，请稍后重试") }
+            } finally { emit { current -> current.copy(busy = false) }; main.post { if (!state.playing) stopForeground(STOP_FOREGROUND_DETACH) } }
         }
     }
     private fun resetSession() {
         loginGeneration++; generation++; pauseEpoch++; authenticated = false; api.cookie = ""; vault.clear()
         queue.clear(); liked.clear(); seeds.clear(); ready = false
-        emit(State())
+        emit { current -> State() }
         main.post { player?.release(); player = null; audio.abandonAudioFocusRequest(focus); stopForeground(STOP_FOREGROUND_REMOVE) }
     }
     private fun request(path: String, data: JSONObject = JSONObject(), web: Boolean = false) = api.call(path, data, web)
@@ -149,7 +150,7 @@ class MusicService : Service() {
         val likes = request("/api/song/like/get", JSONObject().put("uid", uid))
         check(likes.optInt("code") == 200 && likes.optJSONArray("ids") != null) { "读取红心状态失败，请重试" }
         liked.clear(); likes.getJSONArray("ids").let { for (i in 0 until it.length()) liked.add(it.getLong(i)) }
-        authenticated = true; emit(state.copy(authenticated = true, qr = "", message = "已连接网易云 · 心动模式")); return true
+        authenticated = true; emit { current -> current.copy(authenticated = true, qr = "", message = "已连接网易云 · 心动模式") }; return true
     }
     private fun acceptLogin(result: JSONObject) {
         if (!alive) return
@@ -158,13 +159,13 @@ class MusicService : Service() {
         api.cookie = cookie; loginGeneration++
         check(authenticate()) { "登录会话无效，请重试" }
         val saved = vault.save(cookie)
-        emit(state.copy(qr = "", message = if (saved) "登录成功，点击播放开启心动模式" else "登录成功；加密保存失败，仅本次会话有效"))
+        emit { current -> current.copy(qr = "", message = if (saved) "登录成功，点击播放开启心动模式" else "登录成功；加密保存失败，仅本次会话有效") }
     }
     private fun login() {
         val token = ++loginGeneration
         val key = api.call("/api/login/qrcode/unikey", JSONObject().put("type", 3), authenticated = false).optString("unikey")
         check(key.isNotBlank()) { "二维码获取失败，请重试" }
-        emit(state.copy(qr = "https://music.163.com/login?codekey=$key", message = "使用网易云扫码；也可使用短信登录"))
+        emit { current -> current.copy(qr = "https://music.163.com/login?codekey=$key", message = "使用网易云扫码；也可使用短信登录") }
         val deadline = System.currentTimeMillis() + 180000
         fun poll() {
             if (!alive || token != loginGeneration) return
@@ -172,12 +173,12 @@ class MusicService : Service() {
                 val result = api.call("/api/login/qrcode/client/login", JSONObject().put("key", key).put("type", 3), authenticated = false)
                 when (result.optInt("code")) {
                     803 -> { acceptLogin(result); return }
-                    800 -> { emit(state.copy(qr = "", message = "二维码已过期，请刷新")); return }
-                    802 -> emit(state.copy(message = "已扫码，请在网易云确认"))
+                    800 -> { emit { current -> current.copy(qr = "", message = "二维码已过期，请刷新") }; return }
+                    802 -> emit { current -> current.copy(message = "已扫码，请在网易云确认") }
                 }
                 if (System.currentTimeMillis() < deadline) worker.schedule({ poll() }, 2500, TimeUnit.MILLISECONDS)
-                else emit(state.copy(qr = "", message = "二维码已过期，请刷新"))
-            } catch (_: Exception) { emit(state.copy(message = "登录检查失败，请刷新二维码")) }
+                else emit { current -> current.copy(qr = "", message = "二维码已过期，请刷新") }
+            } catch (_: Exception) { emit { current -> current.copy(message = "登录检查失败，请刷新二维码") } }
         }
         worker.schedule({ poll() }, 2500, TimeUnit.MILLISECONDS)
     }
@@ -199,7 +200,7 @@ class MusicService : Service() {
         val epoch = pauseEpoch
         val token = ++generation
         ready = false; main.post { player?.release(); player = null }
-        emit(state.copy(playing = false, message = "正在准备下一首…"))
+        emit { current -> current.copy(playing = false, message = "正在准备下一首…") }
         repeat(8) {
             if (queue.isEmpty()) fill()
             val song = queue.removeFirst(); val id = song.getLong("id")
@@ -211,7 +212,7 @@ class MusicService : Service() {
             if (url.scheme !in listOf("http", "https")) return@repeat
             if (!alive || epoch != pauseEpoch) return
             val artists = info.optJSONArray("ar") ?: info.optJSONArray("artists") ?: JSONArray()
-            emit(state.copy(title = info.optString("name", "未知歌曲"), artist = (0 until artists.length()).joinToString(" / ") { artists.getJSONObject(it).optString("name") }, id = id, liked = id in liked, playing = true, message = "缓冲中…"))
+            emit { current -> if (epoch != pauseEpoch) current else current.copy(title = info.optString("name", "未知歌曲"), artist = (0 until artists.length()).joinToString(" / ") { artists.getJSONObject(it).optString("name") }, id = id, liked = id in liked, playing = true, message = "缓冲中…") }
             main.post {
                 if (!alive || token != generation || epoch != pauseEpoch || !state.playing) return@post
                 foreground()
@@ -219,7 +220,7 @@ class MusicService : Service() {
                 try {
                     val fresh = MediaPlayer(); player = fresh
                     fresh.setAudioAttributes(attributes); fresh.setWakeMode(this, PowerManager.PARTIAL_WAKE_LOCK)
-                    fresh.setOnPreparedListener { if (alive && token == generation && state.playing) { ready = true; fresh.start(); failures = 0; emit(state.copy(message = "")) } }
+                    fresh.setOnPreparedListener { if (alive && token == generation && state.playing) { ready = true; fresh.start(); failures = 0; emit { current -> current.copy(message = "") } } }
                     fresh.setOnCompletionListener { mediaEvent(token, false) }
                     fresh.setOnErrorListener { _, _, _ -> mediaEvent(token, true); true }
                     fresh.setDataSource(url.buildUpon().scheme("https").build().toString()); fresh.prepareAsync()
@@ -234,7 +235,7 @@ class MusicService : Service() {
         worker.execute {
             if (!alive || token != generation || !state.playing) return@execute
             try { if (failed) { failures++; check(failures < 8) { "连续歌曲播放失败，已暂停" } }; next() }
-            catch (_: Exception) { pause(); emit(state.copy(message = "连续歌曲播放失败，已暂停。请点击下一首重试")) }
+            catch (_: Exception) { pause(); emit { current -> current.copy(message = "连续歌曲播放失败，已暂停。请点击下一首重试") } }
         }
     }
     private fun interruptPlayback() {
@@ -242,11 +243,11 @@ class MusicService : Service() {
         pause()
     }
     private fun pause() {
-        emit(state.copy(playing = false))
+        emit { current -> current.copy(playing = false) }
         main.post { runCatching { if (ready) player?.pause() }; audio.abandonAudioFocusRequest(focus); stopForeground(STOP_FOREGROUND_DETACH) }
     }
-    private fun resume() {
-        emit(state.copy(playing = true, message = ""))
+    private fun resume(epoch: Long) {
+        emit { current -> if (epoch != pauseEpoch) current else current.copy(playing = true, message = "") }
         main.post { if (!alive || !state.playing) return@post; foreground(); if (audio.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) runCatching { player?.start() }.onFailure { command("pause") } else command("pause") }
     }
     private fun pending(action: String): PendingIntent = PendingIntent.getService(this, action.hashCode(), Intent(this, MusicService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)

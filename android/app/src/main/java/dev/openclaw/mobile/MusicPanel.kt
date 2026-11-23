@@ -70,7 +70,9 @@ internal class MusicPanel(private val activity: Activity, root: LinearLayout) {
         body.addView(Button(activity).apply { text = "分享二维码（可保存后在网易云扫一扫相册中尝试）"; textSize = 12f; setOnClickListener {
             val current = bitmap ?: return@setOnClickListener
             runCatching {
-                val file = File(activity.cacheDir, "music-share/login.png").apply { parentFile!!.mkdirs() }
+                val directory = File(activity.cacheDir, "music-share").apply { mkdirs() }
+                directory.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 600000 }?.forEach { it.delete() }
+                val file = File(directory, "${java.util.UUID.randomUUID()}.png")
                 file.outputStream().use { current.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.updates", file)
                 activity.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("image/png").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "分享登录二维码"))
